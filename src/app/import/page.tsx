@@ -118,7 +118,11 @@ export default function ImportPage() {
   }
 
   function setRowCategory(idx: number, category: string) {
-    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, category } : r)));
+    setRows((prev) =>
+      prev.map((r, i) =>
+        i === idx ? { ...r, category, categorySource: "auto" } : r,
+      ),
+    );
   }
 
   function toggleRow(idx: number) {
@@ -444,17 +448,27 @@ export default function ImportPage() {
                           </select>
                         </td>
                         <td className="px-4 py-2">
-                          <select
-                            value={r.category}
-                            onChange={(e) => setRowCategory(i, e.target.value)}
-                            className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
-                          >
-                            {CATEGORIES.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={r.category}
+                              onChange={(e) => setRowCategory(i, e.target.value)}
+                              className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
+                            >
+                              {CATEGORIES.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
+                            {r.categorySource === "statement" ? (
+                              <span
+                                className="text-[10px] uppercase tracking-wide text-slate-400"
+                                title="Category came from the statement"
+                              >
+                                stmt
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           {isDup ? (
