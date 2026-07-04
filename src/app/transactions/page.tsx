@@ -7,8 +7,8 @@ import { CATEGORIES } from "@/lib/categorize";
 import { countsAsExpense, type TxnType } from "@/lib/classify";
 import {
   Trash2,
-  EyeOff,
-  Eye,
+  Archive,
+  RotateCcw,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -91,6 +91,12 @@ export default function TransactionsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkType, setBulkType] = useState("");
+  const [view, setView] = useState<"active" | "removed">("active");
+
+  function switchView(v: "active" | "removed") {
+    setView(v);
+    setSelected(new Set());
+  }
 
   function load() {
     setLoading(true);
@@ -128,8 +134,19 @@ export default function TransactionsPage() {
     [txns],
   );
 
+  const activeCount = useMemo(
+    () => txns.filter((t) => !t.excludedFromExpenses).length,
+    [txns],
+  );
+  const removedCount = useMemo(
+    () => txns.filter((t) => t.excludedFromExpenses).length,
+    [txns],
+  );
+
   const filtered = useMemo(() => {
     return txns.filter((t) => {
+      if (view === "active" && t.excludedFromExpenses) return false;
+      if (view === "removed" && !t.excludedFromExpenses) return false;
       if (typeFilter && t.type !== typeFilter) return false;
       if (categoryFilter && t.category !== categoryFilter) return false;
       if (cardFilter && (t.cardName ?? t.account ?? "—") !== cardFilter)
@@ -138,7 +155,7 @@ export default function TransactionsPage() {
         return false;
       return true;
     });
-  }, [txns, typeFilter, categoryFilter, cardFilter, search]);
+  }, [txns, view, typeFilter, categoryFilter, cardFilter, search]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -335,6 +352,21 @@ export default function TransactionsPage() {
         </div>
       </div>
 
+      <div className="flex gap-1 border-b border-slate-200">
+        <TabButton
+          label="Active"
+          count={activeCount}
+          active={view === "active"}
+          onClick={() => switchView("active")}
+        />
+        <TabButton
+          label="Removed"
+          count={removedCount}
+          active={view === "removed"}
+          onClick={() => switchView("removed")}
+        />
+      </div>
+
       {selected.size > 0 ? (
         <div className="sticky top-16 z-10 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
           <span className="text-sm font-semibold text-emerald-800">
@@ -344,50 +376,52 @@ export default function TransactionsPage() {
             ({formatCurrency(selectedTotal, true)})
           </span>
           <div className="mx-1 h-5 w-px bg-emerald-200" />
-          <select
-            value={bulkCategory}
-            onChange={(e) => {
-              const v = e.target.value;
-              setBulkCategory("");
-              if (v) bulkPatch({ category: v });
-            }}
-            className="rounded-lg border border-emerald-300 bg-white px-2 py-1.5 text-sm"
-          >
-            <option value="">Set category…</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select
-            value={bulkType}
-            onChange={(e) => {
-              const v = e.target.value;
-              setBulkType("");
-              if (v) bulkPatch({ type: v as TxnType });
-            }}
-            className="rounded-lg border border-emerald-300 bg-white px-2 py-1.5 text-sm"
-          >
-            <option value="">Set type…</option>
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="secondary"
-            onClick={() => bulkPatch({ excludedFromExpenses: true })}
-          >
-            <EyeOff className="h-4 w-4" /> Exclude
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => bulkPatch({ excludedFromExpenses: false })}
-          >
-            <Eye className="h-4 w-4" /> Include
-          </Button>
+          {view === "active" ? (
+            <>
+              <select
+                value={bulkCategory}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setBulkCategory("");
+                  if (v) bulkPatch({ category: v });
+                }}
+                className="rounded-lg border border-emerald-300 bg-white px-2 py-1.5 text-sm"
+              >
+                <option value="">Set category…</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={bulkType}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setBulkType("");
+                  if (v) bulkPatch({ type: v as TxnType });
+                }}
+                className="rounded-lg border border-emerald-300 bg-white px-2 py-1.5 text-sm"
+              >
+                <option value="">Set type…</option>
+                {TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="secondary"
+                onClick={() => bulkPatch({ excludedFromExpenses: true })}
+              >
+                <Archive className="h-4 w-4" /> Remove
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => bulkPatch({ excludedFromExpenses: false })}>
+              <RotateCcw className="h-4 w-4" /> Restore
+            </Button>
+          )}
           <Button variant="danger" onClick={bulkDelete}>
             <Trash2 className="h-4 w-4" /> Delete
           </Button>
@@ -453,9 +487,9 @@ export default function TransactionsPage() {
                 return (
                   <tr
                     key={t.id}
-                    className={`${t.excludedFromExpenses ? "opacity-50" : ""} ${
+                    className={
                       isSel ? "bg-emerald-50/50" : "hover:bg-slate-50"
-                    }`}
+                    }
                   >
                     <td className="px-3 py-2">
                       <input
@@ -514,7 +548,7 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-4 py-2">
                       {t.excludedFromExpenses ? (
-                        <Badge color="slate">excluded</Badge>
+                        <Badge color="slate">removed</Badge>
                       ) : netted ? (
                         <Badge color="emerald">netted</Badge>
                       ) : t.nettingStatus === "suggested" ? (
@@ -529,27 +563,29 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-end gap-1">
+                        {t.excludedFromExpenses ? (
+                          <button
+                            title="Restore to expenses"
+                            onClick={() =>
+                              patch(t.id, { excludedFromExpenses: false })
+                            }
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <button
+                            title="Remove (moves to Removed tab)"
+                            onClick={() =>
+                              patch(t.id, { excludedFromExpenses: true })
+                            }
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          >
+                            <Archive className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
-                          title={
-                            t.excludedFromExpenses
-                              ? "Include in expenses"
-                              : "Exclude from expenses"
-                          }
-                          onClick={() =>
-                            patch(t.id, {
-                              excludedFromExpenses: !t.excludedFromExpenses,
-                            })
-                          }
-                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                        >
-                          {t.excludedFromExpenses ? (
-                            <Eye className="h-4 w-4" />
-                          ) : (
-                            <EyeOff className="h-4 w-4" />
-                          )}
-                        </button>
-                        <button
-                          title="Delete"
+                          title="Delete permanently"
                           onClick={() => remove(t.id)}
                           className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                         >
@@ -564,7 +600,9 @@ export default function TransactionsPage() {
           </table>
           {!loading && sorted.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-400">
-              No transactions found.
+              {view === "removed"
+                ? "Nothing removed. Items you remove show up here to restore."
+                : "No transactions found."}
             </p>
           ) : null}
           {loading ? (
@@ -573,6 +611,38 @@ export default function TransactionsPage() {
         </div>
       </Panel>
     </div>
+  );
+}
+
+function TabButton({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+        active
+          ? "border-emerald-600 text-emerald-700"
+          : "border-transparent text-slate-500 hover:text-slate-800"
+      }`}
+    >
+      {label}
+      <span
+        className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+          active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+        }`}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 
