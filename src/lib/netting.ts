@@ -33,7 +33,7 @@ function tokens(desc: string): Set<string> {
   );
 }
 
-function merchantOverlap(a: string, b: string): number {
+export function merchantOverlap(a: string, b: string): number {
   const ta = tokens(a);
   const tb = tokens(b);
   if (ta.size === 0 || tb.size === 0) return 0;
@@ -46,6 +46,16 @@ function daysBetween(a: string, b: string): number {
   const da = new Date(a).getTime();
   const db = new Date(b).getTime();
   return Math.abs(da - db) / (1000 * 60 * 60 * 24);
+}
+
+/** High vs medium confidence for a credit<->purchase pair, for the review UI. */
+export function matchConfidence(
+  creditDescription: string,
+  purchaseDescription: string,
+): "high" | "medium" {
+  return merchantOverlap(creditDescription, purchaseDescription) >= 0.34
+    ? "high"
+    : "medium";
 }
 
 const AMOUNT_TOLERANCE = 0.01; // exact match (allow rounding)

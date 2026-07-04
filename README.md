@@ -28,10 +28,12 @@ Every transaction is classified into a type:
 **Netting engine:** each statement credit is matched to the purchase it offsets
 (exact amount + within ~2 months + merchant similarity).
 
-- Confident matches are **auto-netted** → both the credit and its purchase drop
-  out of expenses.
-- Fuzzy matches go to the **Review** queue for a one-click confirm. Nothing is
-  silently guessed.
+- **Nothing is netted automatically** — every match waits in the **Review** queue
+  for your approval before the credit and its purchase drop out of expenses.
+- Matches are labeled **high confidence** vs **verify merchant**, and a
+  one-click "Net out all high-confidence" button keeps it fast.
+- Un-netted credits still reduce your total, so partial/unmatched credits are
+  handled correctly either way.
 
 ## Tech
 

@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Loader2,
+  Trash2,
 } from "lucide-react";
 
 interface Status {
@@ -25,6 +26,10 @@ export default function SetupPage() {
     skipped: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState<"transactions" | "all" | null>(
+    null,
+  );
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
 
   function refresh() {
     fetch("/api/setup")
@@ -52,6 +57,39 @@ export default function SetupPage() {
       setError(String(e));
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function reset(scope: "transactions" | "all") {
+    const msg =
+      scope === "all"
+        ? "Delete ALL transactions AND cards, then re-seed your cards? This cannot be undone."
+        : "Delete ALL transactions? Your cards stay. This cannot be undone.";
+    if (!confirm(msg)) return;
+    setResetting(scope);
+    setResetMsg(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setResetMsg(
+          scope === "all"
+            ? `Everything cleared and ${data.reseeded ?? 0} cards re-seeded.`
+            : "All transactions cleared.",
+        );
+        refresh();
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setResetting(null);
     }
   }
 
@@ -155,6 +193,57 @@ export default function SetupPage() {
           <li>Seeds your 17 household cards with their annual fees.</li>
           <li>Skips anything already there, so re-running is harmless.</li>
         </ul>
+      </Panel>
+
+      <Panel className="space-y-4 border-rose-200">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-rose-600" />
+          <h3 className="text-sm font-semibold text-rose-700">Danger zone</h3>
+        </div>
+        <p className="text-sm text-slate-500">
+          Reset your data to start fresh. This permanently deletes rows from the
+          database and can&apos;t be undone.
+        </p>
+
+        {resetMsg ? (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>{resetMsg}</span>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => reset("transactions")}
+            disabled={Boolean(resetting) || Boolean(dbError)}
+          >
+            {resetting === "transactions" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Clearing…
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" /> Clear transactions (keep cards)
+              </>
+            )}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => reset("all")}
+            disabled={Boolean(resetting) || Boolean(dbError)}
+          >
+            {resetting === "all" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Resetting…
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" /> Reset everything &amp; re-seed cards
+              </>
+            )}
+          </Button>
+        </div>
       </Panel>
     </div>
   );
