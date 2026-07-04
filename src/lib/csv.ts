@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import { classifyTransaction, type TxnType } from "./classify";
-import { categorize } from "./categorize";
+import { categorize, type Category } from "./categorize";
 
 export type AmountConvention =
   | "auto"
@@ -15,6 +15,7 @@ export interface ParsedTransaction {
   rawAmount: number;
   type: TxnType;
   category: string;
+  categorySource: "statement" | "auto"; // where the category came from
 }
 
 export interface ParseResult {
@@ -26,6 +27,7 @@ export interface ParseResult {
     amount: string | null;
     debit: string | null;
     credit: string | null;
+    category: string | null;
   };
   skipped: number;
   warnings: string[];
@@ -36,6 +38,47 @@ const DESC_KEYS = ["description", "details", "payee", "merchant", "memo", "name"
 const AMOUNT_KEYS = ["amount", "amount (usd)", "transaction amount"];
 const DEBIT_KEYS = ["debit", "charges", "withdrawal", "withdrawals"];
 const CREDIT_KEYS = ["credit", "payments", "deposit", "deposits"];
+const CATEGORY_KEYS = ["category", "categories"];
+
+/**
+ * Map an issuer's category string (Amex/Chase/etc.) onto our canonical
+ * categories. Returns null when the issuer category is missing or too generic,
+ * so we can fall back to keyword-based categorization.
+ *
+ * Order matters: more specific checks (groceries, dining) come before broader
+ * ones (merchandise/retail) since issuer strings like
+ * "Merchandise & Supplies-Groceries" contain both.
+ */
+export function mapStatementCategory(raw: unknown): Category | null {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (!s) return null;
+
+  const has = (...words: string[]) => words.some((w) => s.includes(w));
+
+  if (has("grocer", "supermarket")) return "Groceries";
+  if (has("restaurant", "dining", "food & drink", "food and drink", "bar & cafe", "coffee", "fast food"))
+    return "Dining";
+  if (has("airline", "lodging", "hotel", "cruise", "flight", "travel"))
+    return "Travel";
+  if (has("gas", "fuel", "automotive", "transportation", "transit", "parking", "rideshare", "taxi", "tolls"))
+    return "Transport";
+  if (has("cable", "internet", "communication", "phone", "wireless", "utilit"))
+    return "Utilities";
+  if (has("entertainment", "recreation", "streaming"))
+    return "Entertainment";
+  if (has("health", "wellness", "medical", "pharmacy", "drug"))
+    return "Health";
+  if (has("home", "furnishing", "improvement", "hardware"))
+    return "Home";
+  if (has("fee", "interest", "adjustment", "finance charge"))
+    return "Fees";
+  if (has("merchandise", "retail", "shops", "shopping", "supplies", "department store", "clothing"))
+    return "Shopping";
+
+  // Too generic to trust (e.g. "Personal", "Professional Services",
+  // "Business Services", "Government", "Education", "Other") -> fall back.
+  return null;
+}
 
 function findColumn(headers: string[], candidates: string[]): string | null {
   const lower = headers.map((h) => h.trim().toLowerCase());
@@ -126,6 +169,7 @@ export function parseCsv(
   const amountCol = findColumn(headers, AMOUNT_KEYS);
   const debitCol = findColumn(headers, DEBIT_KEYS);
   const creditCol = findColumn(headers, CREDIT_KEYS);
+  const categoryCol = findColumn(headers, CATEGORY_KEYS);
 
   const mapping = {
     date: dateCol,
@@ -133,6 +177,7 @@ export function parseCsv(
     amount: amountCol,
     debit: debitCol,
     credit: creditCol,
+    category: categoryCol,
   };
 
   if (!dateCol) warnings.push("Could not find a date column.");
@@ -145,12 +190,20 @@ export function parseCsv(
 
   // First pass: gather raw amounts to auto-detect sign convention.
   const rawAmounts: number[] = [];
-  const staged: { date: string; desc: string; raw: number }[] = [];
+  const staged: {
+    date: string;
+    desc: string;
+    raw: number;
+    statementCategory: Category | null;
+  }[] = [];
   let skipped = 0;
 
   for (const row of rows) {
     const dateStr = dateCol ? parseDateFlexible(row[dateCol]) : null;
     const desc = descCol ? String(row[descCol] ?? "").trim() : "";
+    const statementCategory = categoryCol
+      ? mapStatementCategory(row[categoryCol])
+      : null;
 
     let raw: number | null = null;
     if (usesDebitCredit) {
@@ -167,7 +220,7 @@ export function parseCsv(
       continue;
     }
     rawAmounts.push(raw);
-    staged.push({ date: dateStr, desc, raw });
+    staged.push({ date: dateStr, desc, raw, statementCategory });
   }
 
   // Debit/credit columns are already canonical (positive=spend); a single amount
@@ -186,6 +239,8 @@ export function parseCsv(
     // Canonical: positive = spend.
     const amount = usesDebitCredit ? s.raw : flip ? -s.raw : s.raw;
     const type = classifyTransaction(s.desc, amount);
+    // Prefer the issuer's own category; fall back to keyword rules.
+    const category = s.statementCategory ?? categorize(s.desc);
     return {
       txnDate: s.date,
       description: s.desc,
@@ -193,7 +248,8 @@ export function parseCsv(
       amount: Math.round(amount * 100) / 100,
       rawAmount: s.raw,
       type,
-      category: categorize(s.desc),
+      category,
+      categorySource: s.statementCategory ? "statement" : "auto",
     };
   });
 
