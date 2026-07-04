@@ -14,6 +14,7 @@ import {
   ArrowUpDown,
   Download,
   X,
+  Wand2,
 } from "lucide-react";
 
 interface Txn {
@@ -92,6 +93,7 @@ export default function TransactionsPage() {
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkType, setBulkType] = useState("");
   const [view, setView] = useState<"active" | "removed">("active");
+  const [recategorizing, setRecategorizing] = useState(false);
 
   function switchView(v: "active" | "removed") {
     setView(v);
@@ -247,6 +249,31 @@ export default function TransactionsPage() {
     });
   }
 
+  async function recategorize() {
+    if (
+      !confirm(
+        "Re-apply auto-categories to all transactions using the latest rules? This may overwrite manual category changes.",
+      )
+    )
+      return;
+    setRecategorizing(true);
+    try {
+      const res = await fetch("/api/transactions/recategorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ onlyUncategorized: false }),
+      });
+      const data = await res.json();
+      if (data.error) alert(data.error);
+      else {
+        load();
+        alert(`Re-categorized ${data.updated} transaction(s).`);
+      }
+    } finally {
+      setRecategorizing(false);
+    }
+  }
+
   function exportCsv() {
     const header = ["Date", "Description", "Card", "Amount", "Type", "Category", "Status"];
     const lines = sorted.map((t) =>
@@ -346,6 +373,14 @@ export default function TransactionsPage() {
               </option>
             ))}
           </select>
+          <Button
+            variant="secondary"
+            onClick={recategorize}
+            disabled={recategorizing}
+          >
+            <Wand2 className="h-4 w-4" />{" "}
+            {recategorizing ? "Re-categorizing…" : "Re-categorize"}
+          </Button>
           <Button variant="secondary" onClick={exportCsv}>
             <Download className="h-4 w-4" /> Export
           </Button>
