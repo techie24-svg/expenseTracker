@@ -35,22 +35,23 @@ export async function rescanNetting() {
 
   const matches = suggestMatches(pending);
 
-  let auto = 0;
+  // We never auto-drop a credit. Every match is parked as "suggested" so the
+  // user reviews and confirms it before the credit (and its purchase) are netted
+  // out. The confidence from suggestMatches is surfaced in the review UI.
   let suggested = 0;
   for (const m of matches) {
     await db
       .update(transactions)
-      .set({ nettingStatus: m.status, nettedWithId: m.purchaseId })
+      .set({ nettingStatus: "suggested", nettedWithId: m.purchaseId })
       .where(eq(transactions.id, m.creditId));
     await db
       .update(transactions)
-      .set({ nettingStatus: m.status, nettedWithId: m.creditId })
+      .set({ nettingStatus: "suggested", nettedWithId: m.creditId })
       .where(eq(transactions.id, m.purchaseId));
-    if (m.status === "auto") auto++;
-    else suggested++;
+    suggested++;
   }
 
-  return { auto, suggested, total: matches.length };
+  return { auto: 0, suggested, total: matches.length };
 }
 
 export async function setMatchStatus(

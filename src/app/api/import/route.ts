@@ -25,35 +25,20 @@ export async function POST(req: Request) {
       account = card?.name ?? null;
     }
 
-    // Dedupe against previously imported rows for this card.
-    const existing = await db
-      .select({ importHash: transactions.importHash })
-      .from(transactions)
-      .where(cardId ? eq(transactions.cardId, cardId) : undefined);
-    const seen = new Set(existing.map((e) => e.importHash));
-
-    const toInsert = [];
-    let duplicates = 0;
-    for (const t of parsed) {
-      const hash = importHash(cardId, t.txnDate, t.amount, t.description);
-      if (seen.has(hash)) {
-        duplicates++;
-        continue;
-      }
-      seen.add(hash);
-      toInsert.push({
-        source,
-        cardId,
-        account,
-        txnDate: t.txnDate,
-        description: t.description,
-        rawDescription: t.rawDescription ?? t.description,
-        amount: t.amount.toFixed(2),
-        type: t.type,
-        category: t.category,
-        importHash: hash,
-      });
-    }
+    // The client has already reviewed duplicates and only sends rows the user
+    // approved, so we insert exactly what we receive — no silent skipping.
+    const toInsert = parsed.map((t) => ({
+      source,
+      cardId,
+      account,
+      txnDate: t.txnDate,
+      description: t.description,
+      rawDescription: t.rawDescription ?? t.description,
+      amount: t.amount.toFixed(2),
+      type: t.type,
+      category: t.category,
+      importHash: importHash(cardId, t.txnDate, t.amount, t.description),
+    }));
 
     let inserted = 0;
     if (toInsert.length) {
@@ -67,7 +52,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       inserted,
-      duplicates,
       netting,
     });
   } catch (e) {

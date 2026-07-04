@@ -34,6 +34,11 @@ yarn-error.log*
 .env*
 !.env.example
 
+# personal financial statements — never commit
+/credit card bills/
+/statements/
+*.pdf
+
 # vercel
 .vercel
 

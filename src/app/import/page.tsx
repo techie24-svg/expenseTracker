@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Panel, Button } from "@/components/ui";
+import { Panel, Button, Badge } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   parseCsv,
+  importHash,
   type ParseResult,
   type AmountConvention,
   type ParsedTransaction,
 } from "@/lib/csv";
 import { CATEGORIES } from "@/lib/categorize";
 import type { TxnType } from "@/lib/classify";
-import { Upload, FileText, CheckCircle2, RefreshCw } from "lucide-react";
+import { Upload, FileText, CheckCircle2, RefreshCw, Copy } from "lucide-react";
 
 interface Card {
   id: number;
@@ -38,11 +39,15 @@ export default function ImportPage() {
   const [rawText, setRawText] = useState("");
   const [convention, setConvention] = useState<AmountConvention>("auto");
   const [rows, setRows] = useState<ParsedTransaction[]>([]);
+  const [included, setIncluded] = useState<boolean[]>([]);
+  const [existingCounts, setExistingCounts] = useState<Record<string, number>>(
+    {},
+  );
   const [result, setResult] = useState<ParseResult | null>(null);
   const [committing, setCommitting] = useState(false);
-  const [done, setDone] = useState<{ inserted: number; duplicates: number } | null>(
-    null,
-  );
+  const [done, setDone] = useState<{ inserted: number } | null>(null);
+
+  const cardIdNum = cardId ? Number(cardId) : null;
 
   useEffect(() => {
     fetch("/api/cards")
@@ -51,11 +56,40 @@ export default function ImportPage() {
       .catch(() => {});
   }, []);
 
-  function runParse(text: string, conv: AmountConvention) {
+  // Ask the server which of these rows already exist, so we can flag (not skip)
+  // duplicates for the user to validate.
+  const refreshDupInfo = useCallback(
+    async (rowsArg: ParsedTransaction[], card: number | null) => {
+      if (rowsArg.length === 0) return;
+      const hashes = rowsArg.map((r) =>
+        importHash(card, r.txnDate, r.amount, r.description),
+      );
+      try {
+        const res = await fetch("/api/import/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardId: card, hashes }),
+        });
+        const data = await res.json();
+        const counts: Record<string, number> = data.counts ?? {};
+        setExistingCounts(counts);
+        // Default: include rows that aren't already in the database.
+        setIncluded(rowsArg.map((_, i) => (counts[hashes[i]] ?? 0) === 0));
+      } catch {
+        setExistingCounts({});
+        setIncluded(rowsArg.map(() => true));
+      }
+    },
+    [],
+  );
+
+  function runParse(text: string, conv: AmountConvention, card: number | null) {
     const res = parseCsv(text, conv);
     setResult(res);
     setRows(res.transactions);
+    setIncluded(res.transactions.map(() => true));
     if (conv === "auto") setConvention(res.detectedConvention);
+    refreshDupInfo(res.transactions, card);
   }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -65,39 +99,74 @@ export default function ImportPage() {
     setDone(null);
     const text = await file.text();
     setRawText(text);
-    runParse(text, "auto");
+    runParse(text, "auto", cardIdNum);
   }
 
   function changeConvention(conv: AmountConvention) {
     setConvention(conv);
-    if (rawText) runParse(rawText, conv);
+    if (rawText) runParse(rawText, conv, cardIdNum);
   }
 
+  // Re-check duplicates when the selected card changes (the hash depends on it).
+  useEffect(() => {
+    if (rows.length > 0) refreshDupInfo(rows, cardIdNum);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId]);
+
   function setRowType(idx: number, type: TxnType) {
-    setRows((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, type } : r)),
-    );
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, type } : r)));
   }
 
   function setRowCategory(idx: number, category: string) {
-    setRows((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, category } : r)),
-    );
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, category } : r)));
   }
+
+  function toggleRow(idx: number) {
+    setIncluded((prev) => prev.map((v, i) => (i === idx ? !v : v)));
+  }
+
+  // Per-row duplicate metadata: whether it already exists in the DB, and whether
+  // it's a repeat of another row in this same file.
+  const meta = useMemo(() => {
+    const hashes = rows.map((r) =>
+      importHash(cardIdNum, r.txnDate, r.amount, r.description),
+    );
+    const fileTotals: Record<string, number> = {};
+    hashes.forEach((h) => (fileTotals[h] = (fileTotals[h] ?? 0) + 1));
+    const seen: Record<string, number> = {};
+    return rows.map((_, i) => {
+      const h = hashes[i];
+      seen[h] = (seen[h] ?? 0) + 1;
+      return {
+        hash: h,
+        inDb: existingCounts[h] ?? 0,
+        fileTotal: fileTotals[h],
+        fileIndex: seen[h],
+      };
+    });
+  }, [rows, existingCounts, cardIdNum]);
+
+  const includedCount = included.filter(Boolean).length;
+  const dupInDbCount = meta.filter((m) => m.inDb > 0).length;
+  const repeatCount = meta.filter((m) => m.inDb === 0 && m.fileTotal > 1).length;
+  const allIncluded = rows.length > 0 && includedCount === rows.length;
 
   const summary = useMemo(() => {
     const s = { expenses: 0, credits: 0, payments: 0, fees: 0 };
-    for (const r of rows) {
+    rows.forEach((r, i) => {
+      if (!included[i]) return;
       if (r.type === "purchase") s.expenses += r.amount;
       else if (r.type === "credit" || r.type === "refund")
         s.credits += Math.abs(r.amount);
       else if (r.type === "payment") s.payments += Math.abs(r.amount);
       else if (r.type === "fee" || r.type === "interest") s.fees += r.amount;
-    }
+    });
     return s;
-  }, [rows]);
+  }, [rows, included]);
 
   async function commit() {
+    const toSend = rows.filter((_, i) => included[i]);
+    if (toSend.length === 0) return;
     setCommitting(true);
     try {
       const res = await fetch("/api/import", {
@@ -106,15 +175,17 @@ export default function ImportPage() {
         body: JSON.stringify({
           cardId: cardId || null,
           source: "csv",
-          transactions: rows,
+          transactions: toSend,
         }),
       });
       const data = await res.json();
       if (data.error) {
         alert(data.error);
       } else {
-        setDone({ inserted: data.inserted, duplicates: data.duplicates });
+        setDone({ inserted: data.inserted });
         setRows([]);
+        setIncluded([]);
+        setExistingCounts({});
         setResult(null);
         setRawText("");
         setFileName("");
@@ -144,9 +215,6 @@ export default function ImportPage() {
                 {done.inserted === 1 ? "" : "s"}
               </p>
               <p className="text-sm text-emerald-700">
-                {done.duplicates > 0
-                  ? `${done.duplicates} duplicate(s) skipped. `
-                  : ""}
                 Credits were auto-netted where confident.
               </p>
             </div>
@@ -219,7 +287,7 @@ export default function ImportPage() {
           <Panel className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-slate-700">
-                Preview — {rows.length} transactions
+                Preview — {includedCount} of {rows.length} selected
               </h3>
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-500">Sign convention:</span>
@@ -254,7 +322,10 @@ export default function ImportPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <MiniStat label="Purchases" value={formatCurrency(summary.expenses)} />
+              <MiniStat
+                label="Purchases"
+                value={formatCurrency(summary.expenses)}
+              />
               <MiniStat
                 label="Fees / interest"
                 value={formatCurrency(summary.fees)}
@@ -271,6 +342,22 @@ export default function ImportPage() {
               />
             </div>
 
+            {dupInDbCount > 0 ? (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <Copy className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <strong>{dupInDbCount}</strong> row
+                  {dupInDbCount === 1 ? "" : "s"} already exist in your data
+                  (unchecked below by default). Check the box to import anyway —
+                  useful if you genuinely made the same transaction more than
+                  once.
+                  {repeatCount > 0
+                    ? ` ${repeatCount} more are repeats within this file and are kept by default.`
+                    : ""}
+                </span>
+              </div>
+            ) : null}
+
             {result.warnings.length > 0 ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
                 {result.warnings.join(" ")} Detected columns:{" "}
@@ -281,8 +368,10 @@ export default function ImportPage() {
               </div>
             ) : null}
 
-            <Button onClick={commit} disabled={committing}>
-              {committing ? "Importing…" : `Import ${rows.length} transactions`}
+            <Button onClick={commit} disabled={committing || includedCount === 0}>
+              {committing
+                ? "Importing…"
+                : `Import ${includedCount} transaction${includedCount === 1 ? "" : "s"}`}
             </Button>
           </Panel>
 
@@ -291,57 +380,96 @@ export default function ImportPage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
+                    <th className="px-3 py-2 font-medium">
+                      <input
+                        type="checkbox"
+                        checked={allIncluded}
+                        onChange={(e) =>
+                          setIncluded(rows.map(() => e.target.checked))
+                        }
+                        title="Select all"
+                      />
+                    </th>
                     <th className="px-4 py-2 font-medium">Date</th>
                     <th className="px-4 py-2 font-medium">Description</th>
                     <th className="px-4 py-2 text-right font-medium">Amount</th>
                     <th className="px-4 py-2 font-medium">Type</th>
                     <th className="px-4 py-2 font-medium">Category</th>
+                    <th className="px-4 py-2 font-medium">Duplicate?</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {rows.map((r, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="whitespace-nowrap px-4 py-2 text-slate-500">
-                        {formatDate(r.txnDate)}
-                      </td>
-                      <td className="px-4 py-2">{r.description}</td>
-                      <td
-                        className={`whitespace-nowrap px-4 py-2 text-right tabular-nums ${
-                          r.amount < 0 ? "text-emerald-600" : "text-slate-800"
-                        }`}
+                  {rows.map((r, i) => {
+                    const m = meta[i];
+                    const isDup = m.inDb > 0;
+                    const isRepeat = m.inDb === 0 && m.fileTotal > 1;
+                    return (
+                      <tr
+                        key={i}
+                        className={`hover:bg-slate-50 ${
+                          !included[i] ? "opacity-45" : ""
+                        } ${isDup ? "bg-amber-50/40" : ""}`}
                       >
-                        {formatCurrency(r.amount, true)}
-                      </td>
-                      <td className="px-4 py-2">
-                        <select
-                          value={r.type}
-                          onChange={(e) =>
-                            setRowType(i, e.target.value as TxnType)
-                          }
-                          className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={included[i] ?? false}
+                            onChange={() => toggleRow(i)}
+                          />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2 text-slate-500">
+                          {formatDate(r.txnDate)}
+                        </td>
+                        <td className="px-4 py-2">{r.description}</td>
+                        <td
+                          className={`whitespace-nowrap px-4 py-2 text-right tabular-nums ${
+                            r.amount < 0 ? "text-emerald-600" : "text-slate-800"
+                          }`}
                         >
-                          {TYPES.map((t) => (
-                            <option key={t} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-2">
-                        <select
-                          value={r.category}
-                          onChange={(e) => setRowCategory(i, e.target.value)}
-                          className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
-                        >
-                          {CATEGORIES.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                          {formatCurrency(r.amount, true)}
+                        </td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={r.type}
+                            onChange={(e) =>
+                              setRowType(i, e.target.value as TxnType)
+                            }
+                            className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
+                          >
+                            {TYPES.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={r.category}
+                            onChange={(e) => setRowCategory(i, e.target.value)}
+                            className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
+                          >
+                            {CATEGORIES.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-4 py-2">
+                          {isDup ? (
+                            <Badge color="amber">
+                              Already imported{m.inDb > 1 ? ` (${m.inDb}x)` : ""}
+                            </Badge>
+                          ) : isRepeat ? (
+                            <Badge color="sky">
+                              Repeat {m.fileIndex}/{m.fileTotal}
+                            </Badge>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

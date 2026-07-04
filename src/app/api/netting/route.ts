@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { transactions, cards } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { rescanNetting, setMatchStatus } from "@/lib/applyNetting";
+import { matchConfidence } from "@/lib/netting";
 import { alias } from "drizzle-orm/pg-core";
 
 /** Return the "needs review" queue: suggested credit<->purchase pairs. */
@@ -31,7 +32,15 @@ export async function GET() {
         ),
       );
 
-    return NextResponse.json(rows);
+    const withConfidence = rows.map((r) => ({
+      ...r,
+      confidence: matchConfidence(
+        r.creditDescription,
+        r.purchaseDescription,
+      ),
+    }));
+
+    return NextResponse.json(withConfidence);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
@@ -45,6 +54,20 @@ export async function POST(req: Request) {
     if (action === "rescan") {
       const result = await rescanNetting();
       return NextResponse.json(result);
+    }
+
+    if (action === "confirmMany") {
+      const pairs = Array.isArray(body.pairs) ? body.pairs : [];
+      let count = 0;
+      for (const p of pairs) {
+        const creditId = Number(p.creditId);
+        const purchaseId = Number(p.purchaseId);
+        if (creditId && purchaseId) {
+          await setMatchStatus(creditId, purchaseId, "confirmed");
+          count++;
+        }
+      }
+      return NextResponse.json({ ok: true, confirmed: count });
     }
 
     if (action === "confirm" || action === "reject") {
