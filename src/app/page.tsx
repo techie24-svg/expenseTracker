@@ -22,6 +22,7 @@ interface Stats {
   annualFees: number;
   interest: number;
   creditsCaptured: number;
+  refundsCaptured: number;
   needsReview: number;
   byCategory: { name: string; value: number }[];
   byCard: { name: string; value: number }[];
@@ -150,7 +151,7 @@ export default function DashboardPage() {
 
       {stats && !isEmpty ? (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
             <StatCard
               label="True expenses"
               value={formatCurrency(stats.trueExpenses)}
@@ -167,6 +168,12 @@ export default function DashboardPage() {
               label="Credits captured"
               value={formatCurrency(stats.creditsCaptured)}
               sub="Offset credits netted out"
+              accent="emerald"
+            />
+            <StatCard
+              label="Refunds captured"
+              value={formatCurrency(stats.refundsCaptured)}
+              sub="Merchant refunds returned"
               accent="emerald"
             />
             <StatCard
