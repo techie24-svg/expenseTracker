@@ -113,7 +113,8 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-slate-500">
-            Your true household expenses — credits netted out, fees kept in.
+            Your true household expenses — credits &amp; refunds reduce the
+            total, fees kept in.
           </p>
         </div>
         <select
@@ -183,7 +184,7 @@ export default function DashboardPage() {
             <StatCard
               label="Credits captured"
               value={formatCurrency(stats.creditsCaptured)}
-              sub="Offset credits netted out"
+              sub="Statement / offset credits received"
               accent="emerald"
             />
             <StatCard
