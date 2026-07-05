@@ -212,7 +212,7 @@ export default function DashboardPage() {
           <div className="grid gap-6 lg:grid-cols-5">
             <Panel className="lg:col-span-3">
               <h3 className="mb-4 text-sm font-semibold text-slate-700">
-                Monthly true expenses
+                Monthly actual spend
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
