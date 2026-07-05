@@ -7,7 +7,9 @@ import { type TxnType } from "@/lib/classify";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const month = searchParams.get("month"); // yyyy-mm, optional
+    const monthParam = searchParams.get("month"); // yyyy-mm, "all", or absent
+    // Treat "all" / empty as no month filter (all-time).
+    const month = monthParam && monthParam !== "all" ? monthParam : null;
 
     const rows = await db
       .select({
