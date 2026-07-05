@@ -20,6 +20,7 @@ export async function GET(req: Request) {
         excludedFromExpenses: transactions.excludedFromExpenses,
         nettingStatus: transactions.nettingStatus,
         cardName: cards.name,
+        cardOwner: cards.owner,
       })
       .from(transactions)
       .leftJoin(cards, eq(transactions.cardId, cards.id));
@@ -49,6 +50,12 @@ export async function GET(req: Request) {
     for (const r of rows) {
       const amt = Number(r.amount);
       const type = r.type as TxnType;
+      // Append owner so same-named cards (two Amex Platinums) stay distinct.
+      const cardKey = r.cardName
+        ? r.cardOwner
+          ? `${r.cardName} (${r.cardOwner})`
+          : r.cardName
+        : "Checking / Manual";
       const netted =
         r.nettingStatus === "auto" || r.nettingStatus === "confirmed";
 
@@ -89,7 +96,6 @@ export async function GET(req: Request) {
       // Per-card ledger: count every card's spend, credits, and refunds
       // (netting ignored on purpose — this is just "what came back per card").
       if (!r.excludedFromExpenses && type !== "payment") {
-        const cardKey = r.cardName ?? "Checking / Manual";
         if (type === "purchase" || type === "fee" || type === "interest") {
           cardSpend[cardKey] = (cardSpend[cardKey] ?? 0) + amt;
         } else if (type === "credit") {
@@ -102,7 +108,6 @@ export async function GET(req: Request) {
       if (contributes) {
         trueExpenses += amt;
         byCategory[r.category] = (byCategory[r.category] ?? 0) + amt;
-        const cardKey = r.cardName ?? "Checking / Manual";
         byCard[cardKey] = (byCard[cardKey] ?? 0) + amt;
         if (!cardCat[cardKey]) cardCat[cardKey] = {};
         cardCat[cardKey][r.category] = (cardCat[cardKey][r.category] ?? 0) + amt;

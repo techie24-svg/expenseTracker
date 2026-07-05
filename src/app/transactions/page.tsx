@@ -29,6 +29,18 @@ interface Txn {
   excludedFromExpenses: boolean;
   nettingStatus: string;
   cardName: string | null;
+  cardOwner?: string | null;
+}
+
+/** Card label with owner appended so same-named cards (e.g. two Amex
+ * Platinums) are distinguishable: "Amex Platinum (Spouse)". */
+function cardLabel(t: {
+  cardName: string | null;
+  cardOwner?: string | null;
+  account?: string | null;
+}): string {
+  const base = t.cardName ?? t.account ?? "—";
+  return t.cardOwner ? `${base} (${t.cardOwner})` : base;
 }
 
 const TYPES: TxnType[] = [
@@ -85,6 +97,8 @@ export default function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [cardFilter, setCardFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "txnDate",
@@ -132,8 +146,7 @@ export default function TransactionsPage() {
   }
 
   const cardNames = useMemo(
-    () =>
-      [...new Set(txns.map((t) => t.cardName ?? t.account ?? "—"))].sort(),
+    () => [...new Set(txns.map((t) => cardLabel(t)))].sort(),
     [txns],
   );
 
@@ -152,13 +165,15 @@ export default function TransactionsPage() {
       if (view === "removed" && !t.excludedFromExpenses) return false;
       if (typeFilter && t.type !== typeFilter) return false;
       if (categoryFilter && t.category !== categoryFilter) return false;
-      if (cardFilter && (t.cardName ?? t.account ?? "—") !== cardFilter)
-        return false;
+      if (cardFilter && cardLabel(t) !== cardFilter) return false;
+      // txnDate is ISO (yyyy-mm-dd), so lexical compare is a valid date compare.
+      if (dateFrom && t.txnDate < dateFrom) return false;
+      if (dateTo && t.txnDate > dateTo) return false;
       if (search && !t.description.toLowerCase().includes(search.toLowerCase()))
         return false;
       return true;
     });
-  }, [txns, view, typeFilter, categoryFilter, cardFilter, search]);
+  }, [txns, view, typeFilter, categoryFilter, cardFilter, dateFrom, dateTo, search]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -173,8 +188,8 @@ export default function TransactionsPage() {
         av = statusRank(a);
         bv = statusRank(b);
       } else if (key === "cardName") {
-        av = a.cardName ?? a.account ?? "";
-        bv = b.cardName ?? b.account ?? "";
+        av = cardLabel(a);
+        bv = cardLabel(b);
       } else {
         av = (a[key] ?? "") as string;
         bv = (b[key] ?? "") as string;
@@ -281,7 +296,7 @@ export default function TransactionsPage() {
       [
         t.txnDate,
         `"${t.description.replace(/"/g, '""')}"`,
-        `"${(t.cardName ?? t.account ?? "").replace(/"/g, '""')}"`,
+        `"${cardLabel(t).replace(/"/g, '""')}"`,
         t.amount,
         t.type,
         t.category,
@@ -374,6 +389,37 @@ export default function TransactionsPage() {
               </option>
             ))}
           </select>
+          <div className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm">
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => setDateFrom(e.target.value)}
+              title="From date"
+              className="bg-transparent text-slate-700 outline-none"
+            />
+            <span className="text-slate-400">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              title="To date"
+              className="bg-transparent text-slate-700 outline-none"
+            />
+            {dateFrom || dateTo ? (
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                title="Clear dates"
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
           <Button
             variant="secondary"
             onClick={recategorize}
@@ -541,7 +587,7 @@ export default function TransactionsPage() {
                       {t.description}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-slate-500">
-                      {t.cardName ?? t.account ?? "—"}
+                      {cardLabel(t)}
                     </td>
                     <td
                       className={`whitespace-nowrap px-4 py-2 text-right tabular-nums ${
