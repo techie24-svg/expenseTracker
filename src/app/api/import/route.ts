@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { transactions, cards } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { importHash, type ParsedTransaction } from "@/lib/csv";
-import { rescanNetting } from "@/lib/applyNetting";
 
 export async function POST(req: Request) {
   try {
@@ -48,12 +47,9 @@ export async function POST(req: Request) {
       inserted = rows.length;
     }
 
-    const netting = await rescanNetting();
-
-    return NextResponse.json({
-      inserted,
-      netting,
-    });
+    // No auto-netting: credits and refunds simply reduce totals and show up in
+    // the per-card ledger. Nothing is paired or hidden without the user asking.
+    return NextResponse.json({ inserted });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

@@ -220,7 +220,8 @@ export default function ImportPage() {
                 {done.inserted === 1 ? "" : "s"}
               </p>
               <p className="text-sm text-emerald-700">
-                Credits were auto-netted where confident.
+                Credits and refunds are counted as money back and reduce your
+                totals automatically.
               </p>
             </div>
             <div className="ml-auto flex gap-2">
