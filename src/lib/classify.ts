@@ -129,9 +129,9 @@ export function classifyTransaction(
     if (REFUND_PATTERNS.some((p) => p.test(desc))) return "refund";
     // Any remaining credit-side line is a statement/offset credit.
     if (CREDIT_PATTERNS.some((p) => p.test(desc))) return "credit";
-    // Unlabeled negative amounts are most often payments or credits; default to
-    // credit so they don't accidentally count as spend.
-    return "credit";
+    // Unlabeled negative amounts default to refund (still money back, so it
+    // never counts as spend) — easier to spot and reclassify than a credit.
+    return "refund";
   }
 
   // Positive amount that reads like a payment reversal is rare; treat as purchase.

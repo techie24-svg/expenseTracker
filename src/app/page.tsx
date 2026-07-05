@@ -29,6 +29,13 @@ interface Stats {
   categoryKeys: string[];
   byMonthStacked: Record<string, string | number>[];
   byCardStacked: Record<string, string | number>[];
+  byCardLedger: {
+    name: string;
+    spend: number;
+    credits: number;
+    refunds: number;
+    net: number;
+  }[];
 }
 
 const CAT_COLORS = [
@@ -305,6 +312,85 @@ export default function DashboardPage() {
                   ))}
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </Panel>
+
+          <Panel className="p-0">
+            <h3 className="border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-700">
+              Credits &amp; refunds by card
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-5 py-2 font-medium">Card / account</th>
+                    <th className="px-4 py-2 text-right font-medium">Spend</th>
+                    <th className="px-4 py-2 text-right font-medium">Credits</th>
+                    <th className="px-4 py-2 text-right font-medium">Refunds</th>
+                    <th className="px-5 py-2 text-right font-medium">Net</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {stats.byCardLedger.map((c) => (
+                    <tr key={c.name} className="hover:bg-slate-50">
+                      <td className="px-5 py-2 font-medium text-slate-800">
+                        {c.name}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-slate-700">
+                        {formatCurrency(c.spend)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-emerald-600">
+                        {c.credits ? `−${formatCurrency(c.credits)}` : "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-emerald-600">
+                        {c.refunds ? `−${formatCurrency(c.refunds)}` : "—"}
+                      </td>
+                      <td className="px-5 py-2 text-right font-semibold tabular-nums text-slate-900">
+                        {formatCurrency(c.net)}
+                      </td>
+                    </tr>
+                  ))}
+                  {stats.byCardLedger.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-5 py-4 text-center text-slate-400"
+                      >
+                        No activity in range.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+                {stats.byCardLedger.length > 0 ? (
+                  <tfoot className="border-t border-slate-200 text-sm font-semibold">
+                    <tr>
+                      <td className="px-5 py-2.5">Total</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">
+                        {formatCurrency(
+                          stats.byCardLedger.reduce((s, c) => s + c.spend, 0),
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600">
+                        −
+                        {formatCurrency(
+                          stats.byCardLedger.reduce((s, c) => s + c.credits, 0),
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600">
+                        −
+                        {formatCurrency(
+                          stats.byCardLedger.reduce((s, c) => s + c.refunds, 0),
+                        )}
+                      </td>
+                      <td className="px-5 py-2.5 text-right tabular-nums">
+                        {formatCurrency(
+                          stats.byCardLedger.reduce((s, c) => s + c.net, 0),
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
             </div>
           </Panel>
         </>
