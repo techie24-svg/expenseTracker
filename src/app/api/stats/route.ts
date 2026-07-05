@@ -78,8 +78,18 @@ export async function GET(req: Request) {
           type === "credit" ||
           type === "refund");
 
+      // Charts are rendered on the "Actual Spend" basis: purchases + interest
+      // minus credits and refunds, and EXCLUDING annual/membership fees.
+      const chartContributes =
+        !r.excludedFromExpenses &&
+        !netted &&
+        (type === "purchase" ||
+          type === "interest" ||
+          type === "credit" ||
+          type === "refund");
+
       // Month trend is computed across all months regardless of the filter.
-      if (contributes) {
+      if (chartContributes) {
         const mk = r.txnDate.slice(0, 7);
         byMonth[mk] = (byMonth[mk] ?? 0) + amt;
         if (!monthCat[mk]) monthCat[mk] = {};
@@ -101,8 +111,9 @@ export async function GET(req: Request) {
 
       // Per-card ledger: count every card's spend, credits, and refunds
       // (netting ignored on purpose — this is just "what came back per card").
+      // Spend excludes fees so each card's net equals its Actual Spend.
       if (!r.excludedFromExpenses && type !== "payment") {
-        if (type === "purchase" || type === "fee" || type === "interest") {
+        if (type === "purchase" || type === "interest") {
           cardSpend[cardKey] = (cardSpend[cardKey] ?? 0) + amt;
         } else if (type === "credit") {
           cardCredits[cardKey] = (cardCredits[cardKey] ?? 0) + Math.abs(amt);
@@ -113,12 +124,16 @@ export async function GET(req: Request) {
 
       if (contributes) {
         trueExpenses += amt;
+        if (type === "fee") annualFees += amt;
+        if (type === "interest") interest += amt;
+      }
+
+      // Category / per-card breakdowns use the Actual Spend basis (no fees).
+      if (chartContributes) {
         byCategory[r.category] = (byCategory[r.category] ?? 0) + amt;
         byCard[cardKey] = (byCard[cardKey] ?? 0) + amt;
         if (!cardCat[cardKey]) cardCat[cardKey] = {};
         cardCat[cardKey][r.category] = (cardCat[cardKey][r.category] ?? 0) + amt;
-        if (type === "fee") annualFees += amt;
-        if (type === "interest") interest += amt;
       }
     }
 
