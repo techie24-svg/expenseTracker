@@ -50,6 +50,17 @@ export const nettingStatusEnum = pgEnum("netting_status", [
   "rejected",
 ]);
 
+/**
+ * User-defined categories. Built-in categories live in code
+ * (src/lib/categorize.ts); this table only stores the extra ones the user adds
+ * from the Categories page, so the two are merged for dropdowns.
+ */
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const cards = pgTable("cards", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -104,6 +115,8 @@ export const transactions = pgTable(
   }),
 );
 
+export type CategoryRow = typeof categories.$inferSelect;
+export type NewCategoryRow = typeof categories.$inferInsert;
 export type Card = typeof cards.$inferSelect;
 export type NewCard = typeof cards.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;

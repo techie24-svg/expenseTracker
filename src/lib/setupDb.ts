@@ -16,6 +16,12 @@ const STATEMENTS = [
      CREATE TYPE netting_status AS ENUM ('none','auto','suggested','confirmed','rejected');
    EXCEPTION WHEN duplicate_object THEN null; END $$;`,
 
+  `CREATE TABLE IF NOT EXISTS categories (
+     id serial PRIMARY KEY,
+     name text NOT NULL UNIQUE,
+     created_at timestamp DEFAULT now() NOT NULL
+   );`,
+
   `CREATE TABLE IF NOT EXISTS cards (
      id serial PRIMARY KEY,
      name text NOT NULL,
