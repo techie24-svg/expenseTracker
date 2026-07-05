@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Panel, Button } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
 import { useCategories } from "@/lib/useCategories";
-import { CreditCard, Plus, Check, Trash2 } from "lucide-react";
+import { CreditCard, Plus, Check, Trash2, Pencil, X } from "lucide-react";
 
 interface Card {
   id: number;
@@ -23,6 +23,8 @@ export default function CardsPage() {
   const [owner, setOwner] = useState("Me");
   const [annualFee, setAnnualFee] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
 
   function load() {
     fetch("/api/cards")
@@ -30,6 +32,25 @@ export default function CardsPage() {
       .then((d) => Array.isArray(d) && setCards(d));
   }
   useEffect(load, []);
+
+  async function renameCard(card: Card) {
+    const next = editName.trim();
+    if (!next || next === card.name) {
+      setEditingId(null);
+      return;
+    }
+    const res = await fetch(`/api/cards/${card.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: next }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data.error) alert(data.error);
+    else {
+      setEditingId(null);
+      load();
+    }
+  }
 
   async function deleteCard(card: Card) {
     if (
@@ -107,27 +128,70 @@ export default function CardsPage() {
                     key={c.id}
                     className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2"
                   >
-                    <div>
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        {c.name}
-                        {c.active === false ? (
-                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500">
-                            Closed
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {c.issuer ? `${c.issuer} · ` : ""}
-                        Annual fee {formatCurrency(c.annualFee ?? 0)}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => deleteCard(c)}
-                      title="Delete card"
-                      className="text-slate-400 transition-colors hover:text-rose-600"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {editingId === c.id ? (
+                      <>
+                        <input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") renameCard(c);
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                          autoFocus
+                          className="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                        />
+                        <button
+                          onClick={() => renameCard(c)}
+                          title="Save"
+                          className="text-emerald-600 hover:text-emerald-700"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          title="Cancel"
+                          className="text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            {c.name}
+                            {c.active === false ? (
+                              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500">
+                                Closed
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {c.issuer ? `${c.issuer} · ` : ""}
+                            Annual fee {formatCurrency(c.annualFee ?? 0)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingId(c.id);
+                              setEditName(c.name);
+                            }}
+                            title="Rename card"
+                            className="text-slate-400 transition-colors hover:text-slate-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteCard(c)}
+                            title="Delete card"
+                            className="text-slate-400 transition-colors hover:text-rose-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
