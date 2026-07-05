@@ -157,12 +157,12 @@ export default function ImportPage() {
   const allIncluded = rows.length > 0 && includedCount === rows.length;
 
   const summary = useMemo(() => {
-    const s = { expenses: 0, credits: 0, payments: 0, fees: 0 };
+    const s = { expenses: 0, credits: 0, refunds: 0, payments: 0, fees: 0 };
     rows.forEach((r, i) => {
       if (!included[i]) return;
       if (r.type === "purchase") s.expenses += r.amount;
-      else if (r.type === "credit" || r.type === "refund")
-        s.credits += Math.abs(r.amount);
+      else if (r.type === "credit") s.credits += Math.abs(r.amount);
+      else if (r.type === "refund") s.refunds += Math.abs(r.amount);
       else if (r.type === "payment") s.payments += Math.abs(r.amount);
       else if (r.type === "fee" || r.type === "interest") s.fees += r.amount;
     });
@@ -327,7 +327,7 @@ export default function ImportPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               <MiniStat
                 label="Purchases"
                 value={formatCurrency(summary.expenses)}
@@ -339,6 +339,11 @@ export default function ImportPage() {
               <MiniStat
                 label="Credits"
                 value={formatCurrency(summary.credits)}
+                good
+              />
+              <MiniStat
+                label="Refunds"
+                value={formatCurrency(summary.refunds)}
                 good
               />
               <MiniStat
