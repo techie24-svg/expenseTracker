@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Panel, Button } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
 import { useCategories } from "@/lib/useCategories";
-import { CreditCard, Plus, Check } from "lucide-react";
+import { CreditCard, Plus, Check, Trash2 } from "lucide-react";
 
 interface Card {
   id: number;
@@ -30,6 +30,19 @@ export default function CardsPage() {
       .then((d) => Array.isArray(d) && setCards(d));
   }
   useEffect(load, []);
+
+  async function deleteCard(card: Card) {
+    if (
+      !confirm(
+        `Delete "${card.name}"? Its transactions are kept but will no longer be linked to this card.`,
+      )
+    )
+      return;
+    const res = await fetch(`/api/cards/${card.id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (data.error) alert(data.error);
+    else load();
+  }
 
   async function addCard(e: React.FormEvent) {
     e.preventDefault();
@@ -108,6 +121,13 @@ export default function CardsPage() {
                         Annual fee {formatCurrency(c.annualFee ?? 0)}
                       </div>
                     </div>
+                    <button
+                      onClick={() => deleteCard(c)}
+                      title="Delete card"
+                      className="text-slate-400 transition-colors hover:text-rose-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 ))}
               </div>
