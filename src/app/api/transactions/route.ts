@@ -44,6 +44,7 @@ export async function GET(req: Request) {
         person: transactions.person,
         notes: transactions.notes,
         cardName: cards.name,
+        cardOwner: cards.owner,
       })
       .from(transactions)
       .leftJoin(cards, eq(transactions.cardId, cards.id))
