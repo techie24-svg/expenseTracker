@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Panel, Button } from "@/components/ui";
+import { CategoryManager } from "@/components/CategoryManager";
 import {
   Database,
   CheckCircle2,
@@ -194,6 +195,8 @@ export default function SetupPage() {
           <li>Skips anything already there, so re-running is harmless.</li>
         </ul>
       </Panel>
+
+      <CategoryManager />
 
       <Panel className="space-y-4 border-rose-200">
         <div className="flex items-center gap-2">

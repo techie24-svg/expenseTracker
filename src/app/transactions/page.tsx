@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Panel, Badge, Button } from "@/components/ui";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { CATEGORIES } from "@/lib/categorize";
+import { useCategories } from "@/lib/useCategories";
 import { countsAsExpense, type TxnType } from "@/lib/classify";
 import {
   Trash2,
@@ -79,6 +79,7 @@ function statusRank(t: Txn): string {
 }
 
 export default function TransactionsPage() {
+  const { names: categoryNames } = useCategories();
   const [txns, setTxns] = useState<Txn[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState("");
@@ -355,7 +356,7 @@ export default function TransactionsPage() {
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
           >
             <option value="">All categories</option>
-            {CATEGORIES.map((c) => (
+            {categoryNames.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
@@ -423,7 +424,7 @@ export default function TransactionsPage() {
                 className="rounded-lg border border-emerald-300 bg-white px-2 py-1.5 text-sm"
               >
                 <option value="">Set category…</option>
-                {CATEGORIES.map((c) => (
+                {categoryNames.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -574,7 +575,7 @@ export default function TransactionsPage() {
                         }
                         className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
                       >
-                        {CATEGORIES.map((c) => (
+                        {categoryNames.map((c) => (
                           <option key={c} value={c}>
                             {c}
                           </option>

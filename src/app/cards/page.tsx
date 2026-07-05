@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Panel, Button } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
-import { CATEGORIES } from "@/lib/categorize";
+import { useCategories } from "@/lib/useCategories";
 import { CreditCard, Plus, Check } from "lucide-react";
 
 interface Card {
@@ -180,6 +180,7 @@ function groupOwners(cards: Card[]): [string, Card[]][] {
 }
 
 function ManualEntry({ cards }: { cards: Card[] }) {
+  const { names: categoryNames } = useCategories();
   const [txnDate, setTxnDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
@@ -261,7 +262,7 @@ function ManualEntry({ cards }: { cards: Card[] }) {
             onChange={(e) => setCategory(e.target.value)}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
           >
-            {CATEGORIES.map((c) => (
+            {categoryNames.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>

@@ -11,7 +11,7 @@ import {
   type AmountConvention,
   type ParsedTransaction,
 } from "@/lib/csv";
-import { CATEGORIES } from "@/lib/categorize";
+import { useCategories } from "@/lib/useCategories";
 import type { TxnType } from "@/lib/classify";
 import { Upload, FileText, CheckCircle2, RefreshCw, Copy } from "lucide-react";
 
@@ -35,6 +35,7 @@ export default function ImportPage() {
   const router = useRouter();
   const [cards, setCards] = useState<Card[]>([]);
   const [cardId, setCardId] = useState<string>("");
+  const { names: categoryNames } = useCategories();
   const [fileName, setFileName] = useState("");
   const [rawText, setRawText] = useState("");
   const [convention, setConvention] = useState<AmountConvention>("auto");
@@ -454,7 +455,7 @@ export default function ImportPage() {
                               onChange={(e) => setRowCategory(i, e.target.value)}
                               className="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs"
                             >
-                              {CATEGORIES.map((c) => (
+                              {categoryNames.map((c) => (
                                 <option key={c} value={c}>
                                   {c}
                                 </option>
