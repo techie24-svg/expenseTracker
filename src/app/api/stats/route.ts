@@ -39,6 +39,11 @@ export async function GET(req: Request) {
     const byCategory: Record<string, number> = {};
     const byCard: Record<string, number> = {};
     const byMonth: Record<string, number> = {};
+    // Per-card ledger of spend vs. money-back, independent of netting so you can
+    // simply see credits and refunds received on each card.
+    const cardSpend: Record<string, number> = {};
+    const cardCredits: Record<string, number> = {};
+    const cardRefunds: Record<string, number> = {};
     // Per-category breakdowns for stacked bar charts.
     const monthCat: Record<string, Record<string, number>> = {};
     const cardCat: Record<string, Record<string, number>> = {};
@@ -87,6 +92,19 @@ export async function GET(req: Request) {
         refundsCaptured += Math.abs(amt);
       }
 
+      // Per-card ledger: count every card's spend, credits, and refunds
+      // (netting ignored on purpose — this is just "what came back per card").
+      if (!r.excludedFromExpenses && type !== "payment") {
+        const cardKey = r.cardName ?? "Checking / Manual";
+        if (type === "purchase" || type === "fee" || type === "interest") {
+          cardSpend[cardKey] = (cardSpend[cardKey] ?? 0) + amt;
+        } else if (type === "credit") {
+          cardCredits[cardKey] = (cardCredits[cardKey] ?? 0) + Math.abs(amt);
+        } else if (type === "refund") {
+          cardRefunds[cardKey] = (cardRefunds[cardKey] ?? 0) + Math.abs(amt);
+        }
+      }
+
       if (contributes) {
         trueExpenses += amt;
         byCategory[r.category] = (byCategory[r.category] ?? 0) + amt;
@@ -127,6 +145,21 @@ export async function GET(req: Request) {
     const monthsAsc = Object.keys(byMonth).sort((a, b) => a.localeCompare(b));
     const cardsByTotal = toSorted(byCard).map((c) => c.name);
 
+    // Per-card ledger rows: spend, credits, refunds, and net for each card.
+    const ledgerCards = new Set([
+      ...Object.keys(cardSpend),
+      ...Object.keys(cardCredits),
+      ...Object.keys(cardRefunds),
+    ]);
+    const byCardLedger = [...ledgerCards]
+      .map((name) => {
+        const spend = round(cardSpend[name] ?? 0);
+        const credits = round(cardCredits[name] ?? 0);
+        const refunds = round(cardRefunds[name] ?? 0);
+        return { name, spend, credits, refunds, net: round(spend - credits - refunds) };
+      })
+      .sort((a, b) => b.spend - a.spend);
+
     return NextResponse.json({
       month: month ?? "all",
       trueExpenses: Math.round(trueExpenses * 100) / 100,
@@ -144,6 +177,7 @@ export async function GET(req: Request) {
       categoryKeys,
       byMonthStacked: stack(monthCat, monthsAsc),
       byCardStacked: stack(cardCat, cardsByTotal),
+      byCardLedger,
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
