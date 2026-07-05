@@ -374,7 +374,12 @@ export default function TransactionsPage() {
       : cardFilter.length === 1
         ? cardFilter[0]
         : `${cardFilter.length} cards`;
-  const netCardValue = cardStats.credits - cardStats.annualFees;
+  // Total spend = all money-out (purchases + fees + interest), excluding
+  // refunds & credits. Actual spend = Total − refunds − credits − fees.
+  const totalSpend =
+    cardStats.trueExpenses + cardStats.credits + cardStats.refunds;
+  const actualSpend =
+    totalSpend - cardStats.refunds - cardStats.credits - cardStats.annualFees;
 
   return (
     <div className="space-y-4">
@@ -458,36 +463,39 @@ export default function TransactionsPage() {
         </div>
       </div>
 
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        Summary · {cardScope}
+      </p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard
-          label="True expenses"
-          value={formatCurrency(cardStats.trueExpenses)}
-          sub={cardScope}
+          label="Total Spend"
+          value={formatCurrency(totalSpend)}
+          sub="Excluding refunds & credits"
           accent="slate"
         />
         <StatCard
-          label="Raw card spend"
-          value={formatCurrency(cardStats.rawSpend)}
-          sub="Before credits & refunds"
-          accent="indigo"
-        />
-        <StatCard
-          label="Credits captured"
-          value={formatCurrency(cardStats.credits)}
-          sub="Statement / offset credits"
-          accent="emerald"
-        />
-        <StatCard
-          label="Refunds captured"
+          label="Refunds"
           value={formatCurrency(cardStats.refunds)}
           sub="Merchant refunds returned"
           accent="emerald"
         />
         <StatCard
-          label="Annual fees paid"
+          label="Credits"
+          value={formatCurrency(cardStats.credits)}
+          sub="Statement / offset credits"
+          accent="emerald"
+        />
+        <StatCard
+          label="Fees"
           value={formatCurrency(cardStats.annualFees)}
-          sub={`Net card value ${formatCurrency(netCardValue, true)}`}
-          accent={netCardValue >= 0 ? "emerald" : "rose"}
+          sub="Annual / membership fees"
+          accent="amber"
+        />
+        <StatCard
+          label="Actual Spend"
+          value={formatCurrency(actualSpend)}
+          sub="Total − refunds − credits − fees"
+          accent="indigo"
         />
       </div>
 
