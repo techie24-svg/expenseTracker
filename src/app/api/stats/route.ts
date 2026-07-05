@@ -31,6 +31,7 @@ export async function GET(req: Request) {
     let annualFees = 0;
     let interest = 0;
     let creditsCaptured = 0; // total value of offset/statement credits received
+    let refundsCaptured = 0; // total value of merchant refunds received
     let rawSpend = 0; // all purchases before netting
     let needsReview = 0;
 
@@ -91,6 +92,9 @@ export async function GET(req: Request) {
       if (type === "purchase" && !r.excludedFromExpenses) rawSpend += amt;
       if (type === "credit" && !r.excludedFromExpenses) {
         creditsCaptured += Math.abs(amt);
+      }
+      if (type === "refund" && !r.excludedFromExpenses) {
+        refundsCaptured += Math.abs(amt);
       }
 
       // Per-card ledger: count every card's spend, credits, and refunds
@@ -166,6 +170,7 @@ export async function GET(req: Request) {
       annualFees: Math.round(annualFees * 100) / 100,
       interest: Math.round(interest * 100) / 100,
       creditsCaptured: Math.round(creditsCaptured * 100) / 100,
+      refundsCaptured: Math.round(refundsCaptured * 100) / 100,
       needsReview,
       byCategory: toSorted(byCategory),
       byCard: toSorted(byCard),
