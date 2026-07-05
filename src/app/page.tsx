@@ -8,8 +8,8 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 import { Panel, StatCard, Button } from "@/components/ui";
 import { formatCurrency } from "@/lib/utils";
@@ -26,6 +26,9 @@ interface Stats {
   byCategory: { name: string; value: number }[];
   byCard: { name: string; value: number }[];
   byMonth: { name: string; value: number }[];
+  categoryKeys: string[];
+  byMonthStacked: Record<string, string | number>[];
+  byCardStacked: Record<string, string | number>[];
 }
 
 const CAT_COLORS = [
@@ -68,6 +71,12 @@ export default function DashboardPage() {
   }, [month]);
 
   const stats = current ?? all;
+  // Shared category order/colors so both stacked charts and the legend match.
+  const categoryKeys = all?.categoryKeys ?? stats?.categoryKeys ?? [];
+  const catColor = (cat: string) => {
+    const idx = categoryKeys.indexOf(cat);
+    return CAT_COLORS[(idx < 0 ? 0 : idx) % CAT_COLORS.length];
+  };
   const months = all?.byMonth.map((m) => m.name) ?? [];
   const netCardValue = stats
     ? stats.creditsCaptured - stats.annualFees
@@ -184,7 +193,7 @@ export default function DashboardPage() {
               </h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={all?.byMonth ?? []}>
+                  <BarChart data={all?.byMonthStacked ?? []}>
                     <XAxis
                       dataKey="name"
                       tickFormatter={monthLabel}
@@ -199,14 +208,20 @@ export default function DashboardPage() {
                       tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                     />
                     <Tooltip
-                      formatter={(v) => formatCurrency(v as number)}
+                      formatter={(v, n) => [formatCurrency(v as number), n as string]}
                       labelFormatter={(l) => monthLabel(l as string)}
                     />
-                    <Bar
-                      dataKey="value"
-                      fill="#10b981"
-                      radius={[6, 6, 0, 0]}
-                    />
+                    {categoryKeys.map((cat, i) => (
+                      <Bar
+                        key={cat}
+                        dataKey={cat}
+                        stackId="cat"
+                        fill={catColor(cat)}
+                        radius={
+                          i === categoryKeys.length - 1 ? [6, 6, 0, 0] : undefined
+                        }
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -217,7 +232,7 @@ export default function DashboardPage() {
                 By category
               </h3>
               <div className="space-y-2">
-                {stats.byCategory.slice(0, 8).map((c, i) => {
+                {stats.byCategory.slice(0, 8).map((c) => {
                   const max = stats.byCategory[0]?.value || 1;
                   return (
                     <div key={c.name} className="space-y-1">
@@ -232,7 +247,7 @@ export default function DashboardPage() {
                           className="h-full rounded-full"
                           style={{
                             width: `${Math.max(3, (c.value / max) * 100)}%`,
-                            backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
+                            backgroundColor: catColor(c.name),
                           }}
                         />
                       </div>
@@ -250,14 +265,20 @@ export default function DashboardPage() {
             <h3 className="mb-4 text-sm font-semibold text-slate-700">
               By card / account
             </h3>
-            <div className="h-56">
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={stats.byCard}
+                  data={stats.byCardStacked}
                   layout="vertical"
                   margin={{ left: 20 }}
                 >
-                  <XAxis type="number" hide />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                  />
                   <YAxis
                     type="category"
                     dataKey="name"
@@ -266,12 +287,22 @@ export default function DashboardPage() {
                     axisLine={false}
                     tickLine={false}
                   />
-                  <Tooltip formatter={(v) => formatCurrency(v as number)} />
-                  <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                    {stats.byCard.map((_, i) => (
-                      <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
-                    ))}
-                  </Bar>
+                  <Tooltip
+                    formatter={(v, n) => [formatCurrency(v as number), n as string]}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: 12 }}
+                    iconType="circle"
+                    iconSize={9}
+                  />
+                  {categoryKeys.map((cat) => (
+                    <Bar
+                      key={cat}
+                      dataKey={cat}
+                      stackId="cat"
+                      fill={catColor(cat)}
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
