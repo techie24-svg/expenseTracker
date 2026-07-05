@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Panel, Badge, Button } from "@/components/ui";
+import { Panel, Badge, Button, StatCard } from "@/components/ui";
+import { MultiSelect } from "@/components/MultiSelect";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useCategories } from "@/lib/useCategories";
 import { countsAsExpense, type TxnType } from "@/lib/classify";
@@ -94,9 +95,9 @@ export default function TransactionsPage() {
   const { names: categoryNames } = useCategories();
   const [txns, setTxns] = useState<Txn[]>([]);
   const [loading, setLoading] = useState(true);
-  const [typeFilter, setTypeFilter] = useState("");
-  const [cardFilter, setCardFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [cardFilter, setCardFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
@@ -163,9 +164,10 @@ export default function TransactionsPage() {
     return txns.filter((t) => {
       if (view === "active" && t.excludedFromExpenses) return false;
       if (view === "removed" && !t.excludedFromExpenses) return false;
-      if (typeFilter && t.type !== typeFilter) return false;
-      if (categoryFilter && t.category !== categoryFilter) return false;
-      if (cardFilter && cardLabel(t) !== cardFilter) return false;
+      if (typeFilter.length && !typeFilter.includes(t.type)) return false;
+      if (categoryFilter.length && !categoryFilter.includes(t.category))
+        return false;
+      if (cardFilter.length && !cardFilter.includes(cardLabel(t))) return false;
       // txnDate is ISO (yyyy-mm-dd), so lexical compare is a valid date compare.
       if (dateFrom && t.txnDate < dateFrom) return false;
       if (dateTo && t.txnDate > dateTo) return false;
@@ -334,6 +336,46 @@ export default function TransactionsPage() {
     0,
   );
 
+  // Summary stats scoped to the CARD filter only (ignores type/category/date/
+  // search/tab). Empty card filter = all cards; multiple selected = consolidated.
+  const cardStats = useMemo(() => {
+    let trueExpenses = 0;
+    let rawSpend = 0;
+    let credits = 0;
+    let refunds = 0;
+    let annualFees = 0;
+    for (const t of txns) {
+      if (cardFilter.length && !cardFilter.includes(cardLabel(t))) continue;
+      if (t.excludedFromExpenses) continue;
+      const amt = Number(t.amount);
+      const netted =
+        t.nettingStatus === "auto" || t.nettingStatus === "confirmed";
+      if (t.type === "purchase") rawSpend += amt;
+      if (t.type === "credit") credits += Math.abs(amt);
+      if (t.type === "refund") refunds += Math.abs(amt);
+      const contributes =
+        !netted &&
+        (t.type === "purchase" ||
+          t.type === "fee" ||
+          t.type === "interest" ||
+          t.type === "credit" ||
+          t.type === "refund");
+      if (contributes) {
+        trueExpenses += amt;
+        if (t.type === "fee") annualFees += amt;
+      }
+    }
+    return { trueExpenses, rawSpend, credits, refunds, annualFees };
+  }, [txns, cardFilter]);
+
+  const cardScope =
+    cardFilter.length === 0
+      ? "All cards"
+      : cardFilter.length === 1
+        ? cardFilter[0]
+        : `${cardFilter.length} cards`;
+  const netCardValue = cardStats.credits - cardStats.annualFees;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -353,42 +395,24 @@ export default function TransactionsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
           />
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-          >
-            <option value="">All types</option>
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-          >
-            <option value="">All categories</option>
-            {categoryNames.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select
-            value={cardFilter}
-            onChange={(e) => setCardFilter(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-          >
-            <option value="">All cards</option>
-            {cardNames.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <MultiSelect
+            label="Types"
+            options={TYPES}
+            selected={typeFilter}
+            onChange={setTypeFilter}
+          />
+          <MultiSelect
+            label="Categories"
+            options={categoryNames}
+            selected={categoryFilter}
+            onChange={setCategoryFilter}
+          />
+          <MultiSelect
+            label="Cards"
+            options={cardNames}
+            selected={cardFilter}
+            onChange={setCardFilter}
+          />
           <div className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm">
             <input
               type="date"
@@ -432,6 +456,39 @@ export default function TransactionsPage() {
             <Download className="h-4 w-4" /> Export
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatCard
+          label="True expenses"
+          value={formatCurrency(cardStats.trueExpenses)}
+          sub={cardScope}
+          accent="slate"
+        />
+        <StatCard
+          label="Raw card spend"
+          value={formatCurrency(cardStats.rawSpend)}
+          sub="Before credits & refunds"
+          accent="indigo"
+        />
+        <StatCard
+          label="Credits captured"
+          value={formatCurrency(cardStats.credits)}
+          sub="Statement / offset credits"
+          accent="emerald"
+        />
+        <StatCard
+          label="Refunds captured"
+          value={formatCurrency(cardStats.refunds)}
+          sub="Merchant refunds returned"
+          accent="emerald"
+        />
+        <StatCard
+          label="Annual fees paid"
+          value={formatCurrency(cardStats.annualFees)}
+          sub={`Net card value ${formatCurrency(netCardValue, true)}`}
+          accent={netCardValue >= 0 ? "emerald" : "rose"}
+        />
       </div>
 
       <div className="flex gap-1 border-b border-slate-200">
