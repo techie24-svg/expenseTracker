@@ -336,17 +336,15 @@ export default function TransactionsPage() {
     0,
   );
 
-  // Summary stats scoped to the CARD filter only (ignores type/category/date/
-  // search/tab). Empty card filter = all cards; multiple selected = consolidated.
-  const cardStats = useMemo(() => {
+  // Summary stats reflect the current filters (type/category/card/date/search
+  // and the active/removed tab) — i.e. exactly the rows visible in the table.
+  const summaryStats = useMemo(() => {
     let trueExpenses = 0;
     let rawSpend = 0;
     let credits = 0;
     let refunds = 0;
     let annualFees = 0;
-    for (const t of txns) {
-      if (cardFilter.length && !cardFilter.includes(cardLabel(t))) continue;
-      if (t.excludedFromExpenses) continue;
+    for (const t of filtered) {
       const amt = Number(t.amount);
       const netted =
         t.nettingStatus === "auto" || t.nettingStatus === "confirmed";
@@ -366,20 +364,27 @@ export default function TransactionsPage() {
       }
     }
     return { trueExpenses, rawSpend, credits, refunds, annualFees };
-  }, [txns, cardFilter]);
+  }, [filtered]);
 
-  const cardScope =
-    cardFilter.length === 0
-      ? "All cards"
-      : cardFilter.length === 1
-        ? cardFilter[0]
-        : `${cardFilter.length} cards`;
+  const activeFilterCount =
+    typeFilter.length +
+    categoryFilter.length +
+    cardFilter.length +
+    (dateFrom || dateTo ? 1 : 0) +
+    (search ? 1 : 0);
+  const summaryScope =
+    activeFilterCount === 0
+      ? "All transactions"
+      : `Filtered · ${filtered.length} shown`;
   // Total spend = all money-out (purchases + fees + interest), excluding
   // refunds & credits. Actual spend = Total − refunds − credits − fees.
   const totalSpend =
-    cardStats.trueExpenses + cardStats.credits + cardStats.refunds;
+    summaryStats.trueExpenses + summaryStats.credits + summaryStats.refunds;
   const actualSpend =
-    totalSpend - cardStats.refunds - cardStats.credits - cardStats.annualFees;
+    totalSpend -
+    summaryStats.refunds -
+    summaryStats.credits -
+    summaryStats.annualFees;
 
   return (
     <div className="space-y-4">
@@ -464,7 +469,7 @@ export default function TransactionsPage() {
       </div>
 
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-        Summary · {cardScope}
+        Summary · {summaryScope}
       </p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard
@@ -475,19 +480,19 @@ export default function TransactionsPage() {
         />
         <StatCard
           label="Refunds"
-          value={formatCurrency(cardStats.refunds)}
+          value={formatCurrency(summaryStats.refunds)}
           sub="Merchant refunds returned"
           accent="emerald"
         />
         <StatCard
           label="Credits"
-          value={formatCurrency(cardStats.credits)}
+          value={formatCurrency(summaryStats.credits)}
           sub="Statement / offset credits"
           accent="emerald"
         />
         <StatCard
           label="Fees"
-          value={formatCurrency(cardStats.annualFees)}
+          value={formatCurrency(summaryStats.annualFees)}
           sub="Annual / membership fees"
           accent="amber"
         />
