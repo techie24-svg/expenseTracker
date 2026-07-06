@@ -39,10 +39,12 @@ export async function GET(req: Request) {
         type: transactions.type,
         category: transactions.category,
         excludedFromExpenses: transactions.excludedFromExpenses,
+        duplicateReview: transactions.duplicateReview,
         nettedWithId: transactions.nettedWithId,
         nettingStatus: transactions.nettingStatus,
         person: transactions.person,
         notes: transactions.notes,
+        importHash: transactions.importHash,
         cardName: cards.name,
         cardOwner: cards.owner,
       })

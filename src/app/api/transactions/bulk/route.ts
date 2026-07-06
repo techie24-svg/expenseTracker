@@ -17,6 +17,8 @@ export async function PATCH(req: Request) {
     if (body.category !== undefined) updates.category = body.category;
     if (body.excludedFromExpenses !== undefined)
       updates.excludedFromExpenses = Boolean(body.excludedFromExpenses);
+    if (body.duplicateReview !== undefined)
+      updates.duplicateReview = Boolean(body.duplicateReview);
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });

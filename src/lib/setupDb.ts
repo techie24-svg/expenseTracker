@@ -45,6 +45,7 @@ const STATEMENTS = [
      type txn_type NOT NULL DEFAULT 'purchase',
      category text NOT NULL DEFAULT 'Uncategorized',
      excluded_from_expenses boolean NOT NULL DEFAULT false,
+     duplicate_review boolean NOT NULL DEFAULT false,
      netted_with_id integer,
      netting_status netting_status NOT NULL DEFAULT 'none',
      person text,
@@ -56,6 +57,7 @@ const STATEMENTS = [
   // In case an older cards table exists without the newer columns.
   `ALTER TABLE cards ADD COLUMN IF NOT EXISTS owner text;`,
   `ALTER TABLE cards ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;`,
+  `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS duplicate_review boolean NOT NULL DEFAULT false;`,
 
   `CREATE INDEX IF NOT EXISTS txn_date_idx ON transactions (txn_date);`,
   `CREATE INDEX IF NOT EXISTS txn_type_idx ON transactions (type);`,
