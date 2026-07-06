@@ -88,8 +88,14 @@ export async function GET(req: Request) {
           type === "credit" ||
           type === "refund");
 
+      // "Fees" is excluded from the actual-spend charts entirely: the fee charge
+      // is already dropped by chartContributes, so its offsetting credits/refunds
+      // (which get categorized as "Fees") must be dropped too — otherwise a card
+      // shows a phantom negative "Fees" bar (e.g. a −$150 annual-fee credit).
+      const inChartCategory = r.category !== "Fees";
+
       // Month trend is computed across all months regardless of the filter.
-      if (chartContributes) {
+      if (chartContributes && inChartCategory) {
         const mk = r.txnDate.slice(0, 7);
         byMonth[mk] = (byMonth[mk] ?? 0) + amt;
         if (!monthCat[mk]) monthCat[mk] = {};
@@ -129,7 +135,7 @@ export async function GET(req: Request) {
       }
 
       // Category / per-card breakdowns use the Actual Spend basis (no fees).
-      if (chartContributes) {
+      if (chartContributes && inChartCategory) {
         byCategory[r.category] = (byCategory[r.category] ?? 0) + amt;
         byCard[cardKey] = (byCard[cardKey] ?? 0) + amt;
         if (!cardCat[cardKey]) cardCat[cardKey] = {};
