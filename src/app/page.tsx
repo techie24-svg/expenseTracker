@@ -288,12 +288,20 @@ export default function DashboardPage() {
             <h3 className="mb-4 text-sm font-semibold text-slate-700">
               By card / account
             </h3>
-            <div className="h-72">
+            <div
+              style={{
+                height: Math.max(
+                  320,
+                  stats.byCardStacked.length * 46 + 72,
+                ),
+              }}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={stats.byCardStacked}
                   layout="vertical"
-                  margin={{ left: 20 }}
+                  barCategoryGap="20%"
+                  margin={{ left: 20, bottom: 8 }}
                 >
                   <XAxis
                     type="number"
@@ -314,9 +322,10 @@ export default function DashboardPage() {
                     formatter={(v, n) => [formatCurrency(v as number), n as string]}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: 12 }}
+                    wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
                     iconType="circle"
                     iconSize={9}
+                    verticalAlign="bottom"
                   />
                   {categoryKeys.map((cat) => (
                     <Bar
