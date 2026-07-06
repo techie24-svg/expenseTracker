@@ -17,6 +17,8 @@ export async function PATCH(
     if (body.category !== undefined) updates.category = body.category;
     if (body.excludedFromExpenses !== undefined)
       updates.excludedFromExpenses = Boolean(body.excludedFromExpenses);
+    if (body.duplicateReview !== undefined)
+      updates.duplicateReview = Boolean(body.duplicateReview);
     if (body.description !== undefined)
       updates.description = String(body.description);
     if (body.person !== undefined) updates.person = body.person;

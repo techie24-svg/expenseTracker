@@ -36,6 +36,7 @@ export async function POST(req: Request) {
       amount: t.amount.toFixed(2),
       type: t.type,
       category: t.category,
+      duplicateReview: Boolean(t.duplicateReview),
       importHash: importHash(cardId, t.txnDate, t.amount, t.description),
     }));
 

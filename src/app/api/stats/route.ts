@@ -20,6 +20,7 @@ export async function GET(req: Request) {
         type: transactions.type,
         category: transactions.category,
         excludedFromExpenses: transactions.excludedFromExpenses,
+        duplicateReview: transactions.duplicateReview,
         nettingStatus: transactions.nettingStatus,
         cardName: cards.name,
         cardOwner: cards.owner,
@@ -51,6 +52,8 @@ export async function GET(req: Request) {
     const catTotals: Record<string, number> = {}; // all-time, for stable ordering/colors
 
     for (const r of rows) {
+      // Rows pending duplicate review don't count anywhere until resolved.
+      if (r.duplicateReview) continue;
       const amt = Number(r.amount);
       const type = r.type as TxnType;
       // Append owner so same-named cards (two Amex Platinums) stay distinct.

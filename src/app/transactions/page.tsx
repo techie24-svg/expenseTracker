@@ -16,6 +16,8 @@ import {
   Download,
   X,
   Wand2,
+  Check,
+  Copy,
 } from "lucide-react";
 
 interface Txn {
@@ -28,7 +30,9 @@ interface Txn {
   type: TxnType;
   category: string;
   excludedFromExpenses: boolean;
+  duplicateReview: boolean;
   nettingStatus: string;
+  importHash?: string | null;
   cardName: string | null;
   cardOwner?: string | null;
 }
@@ -108,10 +112,10 @@ export default function TransactionsPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkType, setBulkType] = useState("");
-  const [view, setView] = useState<"active" | "removed">("active");
+  const [view, setView] = useState<"active" | "review" | "removed">("active");
   const [recategorizing, setRecategorizing] = useState(false);
 
-  function switchView(v: "active" | "removed") {
+  function switchView(v: "active" | "review" | "removed") {
     setView(v);
     setSelected(new Set());
   }
@@ -151,8 +155,23 @@ export default function TransactionsPage() {
     [txns],
   );
 
+  // For a row under review, how many already-counted (non-review) transactions
+  // share its import hash — i.e. how many existing copies it might duplicate.
+  const existingByHash = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const t of txns) {
+      if (t.duplicateReview || !t.importHash) continue;
+      m[t.importHash] = (m[t.importHash] ?? 0) + 1;
+    }
+    return m;
+  }, [txns]);
+
   const activeCount = useMemo(
-    () => txns.filter((t) => !t.excludedFromExpenses).length,
+    () => txns.filter((t) => !t.excludedFromExpenses && !t.duplicateReview).length,
+    [txns],
+  );
+  const reviewCount = useMemo(
+    () => txns.filter((t) => t.duplicateReview && !t.excludedFromExpenses).length,
     [txns],
   );
   const removedCount = useMemo(
@@ -162,7 +181,10 @@ export default function TransactionsPage() {
 
   const filtered = useMemo(() => {
     return txns.filter((t) => {
-      if (view === "active" && t.excludedFromExpenses) return false;
+      if (view === "active" && (t.excludedFromExpenses || t.duplicateReview))
+        return false;
+      if (view === "review" && (!t.duplicateReview || t.excludedFromExpenses))
+        return false;
       if (view === "removed" && !t.excludedFromExpenses) return false;
       if (typeFilter.length && !typeFilter.includes(t.type)) return false;
       if (categoryFilter.length && !categoryFilter.includes(t.category))
@@ -512,6 +534,13 @@ export default function TransactionsPage() {
           onClick={() => switchView("active")}
         />
         <TabButton
+          label="Review"
+          count={reviewCount}
+          active={view === "review"}
+          onClick={() => switchView("review")}
+          highlight={reviewCount > 0}
+        />
+        <TabButton
           label="Removed"
           count={removedCount}
           active={view === "removed"}
@@ -562,6 +591,18 @@ export default function TransactionsPage() {
                   </option>
                 ))}
               </select>
+              <Button
+                variant="secondary"
+                onClick={() => bulkPatch({ excludedFromExpenses: true })}
+              >
+                <Archive className="h-4 w-4" /> Remove
+              </Button>
+            </>
+          ) : view === "review" ? (
+            <>
+              <Button onClick={() => bulkPatch({ duplicateReview: false })}>
+                <Check className="h-4 w-4" /> Not a duplicate
+              </Button>
               <Button
                 variant="secondary"
                 onClick={() => bulkPatch({ excludedFromExpenses: true })}
@@ -699,7 +740,24 @@ export default function TransactionsPage() {
                       </select>
                     </td>
                     <td className="px-4 py-2">
-                      {t.excludedFromExpenses ? (
+                      {t.duplicateReview && !t.excludedFromExpenses ? (
+                        <span
+                          className="inline-flex items-center gap-1"
+                          title={
+                            t.importHash && existingByHash[t.importHash]
+                              ? `${existingByHash[t.importHash]} matching transaction(s) already counted`
+                              : "Flagged at import as a possible duplicate"
+                          }
+                        >
+                          <Badge color="amber">possible duplicate</Badge>
+                          {t.importHash && existingByHash[t.importHash] ? (
+                            <span className="inline-flex items-center gap-0.5 text-xs text-slate-400">
+                              <Copy className="h-3 w-3" />
+                              {existingByHash[t.importHash]}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : t.excludedFromExpenses ? (
                         <Badge color="slate">removed</Badge>
                       ) : netted ? (
                         <Badge color="emerald">netted</Badge>
@@ -715,7 +773,17 @@ export default function TransactionsPage() {
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-end gap-1">
-                        {t.excludedFromExpenses ? (
+                        {t.duplicateReview && !t.excludedFromExpenses ? (
+                          <button
+                            title="Not a duplicate — keep and count it"
+                            onClick={() =>
+                              patch(t.id, { duplicateReview: false })
+                            }
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                        ) : t.excludedFromExpenses ? (
                           <button
                             title="Restore to expenses"
                             onClick={() =>
@@ -754,7 +822,9 @@ export default function TransactionsPage() {
             <p className="p-8 text-center text-sm text-slate-400">
               {view === "removed"
                 ? "Nothing removed. Items you remove show up here to restore."
-                : "No transactions found."}
+                : view === "review"
+                  ? "No transactions to review. Possible duplicates flagged during import land here."
+                  : "No transactions found."}
             </p>
           ) : null}
           {loading ? (
@@ -771,12 +841,19 @@ function TabButton({
   count,
   active,
   onClick,
+  highlight,
 }: {
   label: string;
   count: number;
   active: boolean;
   onClick: () => void;
+  highlight?: boolean;
 }) {
+  const badgeClass = active
+    ? "bg-emerald-100 text-emerald-700"
+    : highlight
+      ? "bg-amber-100 text-amber-700"
+      : "bg-slate-100 text-slate-500";
   return (
     <button
       onClick={onClick}
@@ -787,11 +864,7 @@ function TabButton({
       }`}
     >
       {label}
-      <span
-        className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
-          active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-        }`}
-      >
+      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${badgeClass}`}>
         {count}
       </span>
     </button>

@@ -16,6 +16,9 @@ export interface ParsedTransaction {
   type: TxnType;
   category: string;
   categorySource: "statement" | "auto"; // where the category came from
+  // Set by the import UI when a row looks like a duplicate, so it lands in the
+  // Review tab instead of counting immediately.
+  duplicateReview?: boolean;
 }
 
 export interface ParseResult {

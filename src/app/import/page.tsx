@@ -46,7 +46,9 @@ export default function ImportPage() {
   );
   const [result, setResult] = useState<ParseResult | null>(null);
   const [committing, setCommitting] = useState(false);
-  const [done, setDone] = useState<{ inserted: number } | null>(null);
+  const [done, setDone] = useState<{ inserted: number; review: number } | null>(
+    null,
+  );
 
   const cardIdNum = cardId ? Number(cardId) : null;
 
@@ -74,8 +76,9 @@ export default function ImportPage() {
         const data = await res.json();
         const counts: Record<string, number> = data.counts ?? {};
         setExistingCounts(counts);
-        // Default: include rows that aren't already in the database.
-        setIncluded(rowsArg.map((_, i) => (counts[hashes[i]] ?? 0) === 0));
+        // Include everything by default — possible duplicates aren't skipped,
+        // they're imported into the Review tab so you can validate them there.
+        setIncluded(rowsArg.map(() => true));
       } catch {
         setExistingCounts({});
         setIncluded(rowsArg.map(() => true));
@@ -170,8 +173,16 @@ export default function ImportPage() {
   }, [rows, included]);
 
   async function commit() {
-    const toSend = rows.filter((_, i) => included[i]);
+    // Tag rows that look like duplicates (already in DB, or a repeat within this
+    // file) so they land in the Review tab instead of counting immediately.
+    const toSend = rows
+      .map((r, i) => ({
+        ...r,
+        duplicateReview: meta[i].inDb > 0 || meta[i].fileIndex > 1,
+      }))
+      .filter((_, i) => included[i]);
     if (toSend.length === 0) return;
+    const reviewCount = toSend.filter((r) => r.duplicateReview).length;
     setCommitting(true);
     try {
       const res = await fetch("/api/import", {
@@ -187,7 +198,7 @@ export default function ImportPage() {
       if (data.error) {
         alert(data.error);
       } else {
-        setDone({ inserted: data.inserted });
+        setDone({ inserted: data.inserted, review: reviewCount });
         setRows([]);
         setIncluded([]);
         setExistingCounts({});
@@ -222,6 +233,11 @@ export default function ImportPage() {
               <p className="text-sm text-emerald-700">
                 Credits and refunds are counted as money back and reduce your
                 totals automatically.
+                {done.review > 0
+                  ? ` ${done.review} possible duplicate${
+                      done.review === 1 ? "" : "s"
+                    } sent to the Review tab on Transactions — confirm or delete them there.`
+                  : ""}
               </p>
             </div>
             <div className="ml-auto flex gap-2">
@@ -359,12 +375,13 @@ export default function ImportPage() {
                 <span>
                   <strong>{dupInDbCount}</strong> row
                   {dupInDbCount === 1 ? "" : "s"} already exist in your data
-                  (unchecked below by default). Check the box to import anyway —
-                  useful if you genuinely made the same transaction more than
-                  once.
                   {repeatCount > 0
-                    ? ` ${repeatCount} more are repeats within this file and are kept by default.`
+                    ? ` and ${repeatCount} more repeat within this file`
                     : ""}
+                  . They&apos;ll be imported into the{" "}
+                  <strong>Review</strong> tab (not counted) so you can confirm
+                  whether they&apos;re real duplicates or delete them. Uncheck a
+                  row to skip it entirely.
                 </span>
               </div>
             ) : null}

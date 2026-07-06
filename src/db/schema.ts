@@ -96,6 +96,10 @@ export const transactions = pgTable(
     excludedFromExpenses: boolean("excluded_from_expenses")
       .notNull()
       .default(false),
+    // Flagged at import time as a possible duplicate (already in DB or a repeat
+    // within the same file). Held in the Review tab and excluded from totals
+    // until the user confirms it's real or deletes it.
+    duplicateReview: boolean("duplicate_review").notNull().default(false),
     // Netting linkage: points at the counterpart transaction (credit<->purchase).
     nettedWithId: integer("netted_with_id"),
     nettingStatus: nettingStatusEnum("netting_status")
