@@ -12,6 +12,8 @@ import {
   Trash2,
   Upload,
   ClipboardPaste,
+  Pencil,
+  X,
 } from "lucide-react";
 
 interface Withdrawal {
@@ -37,7 +39,7 @@ interface ParsedCash {
 
 const BANKS = ["Chase", "BofA", "Fidelity", "Other"];
 const ACCOUNT_TYPES = ["Checking", "Savings"];
-const METHODS = ["Zelle", "Cash", "Other"];
+const METHODS = ["Zelle", "Cash", "ACH", "Debit Card", "Other"];
 
 /** Guess a known bank from free text (statement description / bank cell). */
 function normalizeBank(text: string): string | null {
@@ -53,9 +55,17 @@ function normalizeBank(text: string): string | null {
 function normalizeMethod(text: string): string | null {
   const t = text.toLowerCase();
   if (t.includes("zelle")) return "Zelle";
+  if (t.includes("ach")) return "ACH";
+  if (t.includes("debit")) return "Debit Card";
   if (t.includes("atm") || t.includes("withdrwl") || t.includes("withdrawal"))
     return "Cash";
   return null;
+}
+
+/** Ensure the current value is selectable even if it's not in the preset list. */
+function optionsWith(list: string[], value: string | null): string[] {
+  if (value && !list.includes(value)) return [value, ...list];
+  return list;
 }
 
 function findHeader(headers: string[], needles: string[]): string | null {
@@ -94,6 +104,18 @@ export default function CashPage() {
   const [defBank, setDefBank] = useState(BANKS[0]);
   const [defAccount, setDefAccount] = useState(ACCOUNT_TYPES[0]);
   const [defMethod, setDefMethod] = useState(METHODS[0]);
+
+  // Inline row editing.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [edit, setEdit] = useState({
+    withdrawnAt: "",
+    person: "",
+    bank: "",
+    accountType: "",
+    method: "",
+    amount: "",
+    notes: "",
+  });
 
   function load() {
     setLoading(true);
@@ -142,6 +164,47 @@ export default function CashPage() {
     if (!confirm("Delete this withdrawal?")) return;
     setRows((prev) => prev.filter((r) => r.id !== id));
     await fetch(`/api/cash/${id}`, { method: "DELETE" });
+  }
+
+  function startEdit(r: Withdrawal) {
+    setEditingId(r.id);
+    setEdit({
+      withdrawnAt: r.withdrawnAt.slice(0, 10),
+      person: r.person ?? "",
+      bank: r.bank ?? "",
+      accountType: r.accountType ?? "",
+      method: r.method ?? "",
+      amount: String(r.amount),
+      notes: r.notes ?? "",
+    });
+  }
+
+  async function saveEdit(id: number) {
+    const amt = parseFloat(edit.amount);
+    if (!edit.withdrawnAt || Number.isNaN(amt)) return;
+    const payload = { ...edit, amount: amt };
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              withdrawnAt: edit.withdrawnAt,
+              person: edit.person || null,
+              bank: edit.bank || null,
+              accountType: edit.accountType || null,
+              method: edit.method || null,
+              amount: amt.toFixed(2),
+              notes: edit.notes || null,
+            }
+          : r,
+      ),
+    );
+    setEditingId(null);
+    await fetch(`/api/cash/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
   }
 
   function parseCash(text: string): ParsedCash[] {
@@ -624,36 +687,165 @@ export default function CashPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50">
-                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">
-                      {formatDate(r.withdrawnAt)}
-                    </td>
-                    <td className="px-4 py-2">{r.person || "—"}</td>
-                    <td className="px-4 py-2 text-slate-600">{r.bank || "—"}</td>
-                    <td className="px-4 py-2 text-slate-600">
-                      {r.accountType || "—"}
-                    </td>
-                    <td className="px-4 py-2 text-slate-600">
-                      {r.method || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right font-medium tabular-nums">
-                      {formatCurrency(r.amount)}
-                    </td>
-                    <td className="max-w-xs truncate px-4 py-2 text-slate-500">
-                      {r.notes || "—"}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        title="Delete"
-                        onClick={() => remove(r.id)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((r) =>
+                  editingId === r.id ? (
+                    <tr key={r.id} className="bg-emerald-50/40">
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="date"
+                          value={edit.withdrawnAt}
+                          onChange={(e) =>
+                            setEdit((s) => ({ ...s, withdrawnAt: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <select
+                          value={edit.person}
+                          onChange={(e) =>
+                            setEdit((s) => ({ ...s, person: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                        >
+                          {optionsWith(["Me", "Spouse"], edit.person).map((p) => (
+                            <option key={p} value={p}>
+                              {p || "—"}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <select
+                          value={edit.bank}
+                          onChange={(e) =>
+                            setEdit((s) => ({ ...s, bank: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                        >
+                          {optionsWith(BANKS, edit.bank).map((b) => (
+                            <option key={b} value={b}>
+                              {b || "—"}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <select
+                          value={edit.accountType}
+                          onChange={(e) =>
+                            setEdit((s) => ({
+                              ...s,
+                              accountType: e.target.value,
+                            }))
+                          }
+                          className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                        >
+                          {optionsWith(ACCOUNT_TYPES, edit.accountType).map(
+                            (a) => (
+                              <option key={a} value={a}>
+                                {a || "—"}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <select
+                          value={edit.method}
+                          onChange={(e) =>
+                            setEdit((s) => ({ ...s, method: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs"
+                        >
+                          {optionsWith(METHODS, edit.method).map((m) => (
+                            <option key={m} value={m}>
+                              {m || "—"}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={edit.amount}
+                          onChange={(e) =>
+                            setEdit((s) => ({ ...s, amount: e.target.value }))
+                          }
+                          className="w-24 rounded-md border border-slate-300 px-2 py-1 text-right text-xs tabular-nums"
+                        />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          value={edit.notes}
+                          onChange={(e) =>
+                            setEdit((s) => ({ ...s, notes: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        />
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            title="Save"
+                            onClick={() => saveEdit(r.id)}
+                            className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-100"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            title="Cancel"
+                            onClick={() => setEditingId(null)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={r.id} className="hover:bg-slate-50">
+                      <td className="whitespace-nowrap px-4 py-2 text-slate-500">
+                        {formatDate(r.withdrawnAt)}
+                      </td>
+                      <td className="px-4 py-2">{r.person || "—"}</td>
+                      <td className="px-4 py-2 text-slate-600">
+                        {r.bank || "—"}
+                      </td>
+                      <td className="px-4 py-2 text-slate-600">
+                        {r.accountType || "—"}
+                      </td>
+                      <td className="px-4 py-2 text-slate-600">
+                        {r.method || "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right font-medium tabular-nums">
+                        {formatCurrency(r.amount)}
+                      </td>
+                      <td className="max-w-xs truncate px-4 py-2 text-slate-500">
+                        {r.notes || "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            title="Edit"
+                            onClick={() => startEdit(r)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            title="Delete"
+                            onClick={() => remove(r.id)}
+                            className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
               {rows.length > 0 ? (
                 <tfoot className="border-t border-slate-200 text-sm font-semibold">
