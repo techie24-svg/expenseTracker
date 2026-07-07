@@ -9,6 +9,7 @@ import {
   ListChecks,
   GitMerge,
   CreditCard,
+  Banknote,
   Database,
 } from "lucide-react";
 
@@ -18,6 +19,7 @@ const links = [
   { href: "/transactions", label: "Transactions", icon: ListChecks },
   { href: "/review", label: "Review", icon: GitMerge },
   { href: "/cards", label: "Cards", icon: CreditCard },
+  { href: "/cash", label: "Cash", icon: Banknote },
   { href: "/setup", label: "Setup", icon: Database },
 ];
 
