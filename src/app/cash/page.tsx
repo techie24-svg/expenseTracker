@@ -374,6 +374,111 @@ export default function CashPage() {
         </Panel>
       </div>
 
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+      <Panel className="space-y-4">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Banknote className="h-4 w-4" /> Log a withdrawal
+        </h3>
+        <form onSubmit={add} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-medium text-slate-500">
+              Date
+              <input
+                type="date"
+                value={withdrawnAt}
+                onChange={(e) => setWithdrawnAt(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-medium text-slate-500">
+              Amount
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-medium text-slate-500">
+              Who
+              <select
+                value={person}
+                onChange={(e) => setPerson(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="Me">Me</option>
+                <option value="Spouse">Spouse</option>
+              </select>
+            </label>
+            <label className="text-xs font-medium text-slate-500">
+              Bank
+              <select
+                value={bank}
+                onChange={(e) => setBank(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                {BANKS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-medium text-slate-500">
+              Account
+              <select
+                value={accountType}
+                onChange={(e) => setAccountType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                {ACCOUNT_TYPES.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-slate-500">
+              Method
+              <select
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                {METHODS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <input
+            placeholder="Notes (optional, e.g. groceries, rent to landlord)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <Button type="submit" disabled={saving}>
+            {saved ? (
+              <>
+                <Check className="h-4 w-4" /> Added
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" /> Add withdrawal
+              </>
+            )}
+          </Button>
+        </form>
+      </Panel>
+
       <Panel className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -565,113 +670,9 @@ export default function CashPage() {
           </div>
         ) : null}
       </Panel>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Panel className="space-y-4 lg:col-span-1">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <Banknote className="h-4 w-4" /> Log a withdrawal
-          </h3>
-          <form onSubmit={add} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-medium text-slate-500">
-                Date
-                <input
-                  type="date"
-                  value={withdrawnAt}
-                  onChange={(e) => setWithdrawnAt(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-medium text-slate-500">
-                Amount
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-medium text-slate-500">
-                Who
-                <select
-                  value={person}
-                  onChange={(e) => setPerson(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  <option value="Me">Me</option>
-                  <option value="Spouse">Spouse</option>
-                </select>
-              </label>
-              <label className="text-xs font-medium text-slate-500">
-                Bank
-                <select
-                  value={bank}
-                  onChange={(e) => setBank(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  {BANKS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs font-medium text-slate-500">
-                Account
-                <select
-                  value={accountType}
-                  onChange={(e) => setAccountType(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  {ACCOUNT_TYPES.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-xs font-medium text-slate-500">
-                Method
-                <select
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  {METHODS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <input
-              placeholder="Notes (optional, e.g. groceries, rent to landlord)"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <Button type="submit" disabled={saving}>
-              {saved ? (
-                <>
-                  <Check className="h-4 w-4" /> Added
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" /> Add withdrawal
-                </>
-              )}
-            </Button>
-          </form>
-        </Panel>
-
-        <Panel className="overflow-hidden p-0 lg:col-span-2">
+      <Panel className="overflow-hidden p-0">
           <div className="overflow-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -871,7 +872,6 @@ export default function CashPage() {
             ) : null}
           </div>
         </Panel>
-      </div>
     </div>
   );
 }
