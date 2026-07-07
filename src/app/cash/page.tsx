@@ -9,6 +9,7 @@ interface Withdrawal {
   id: number;
   person: string | null;
   bank: string | null;
+  accountType: string | null;
   method: string | null;
   amount: string;
   withdrawnAt: string;
@@ -16,6 +17,7 @@ interface Withdrawal {
 }
 
 const BANKS = ["Chase", "BofA", "Fidelity", "Other"];
+const ACCOUNT_TYPES = ["Checking", "Savings"];
 const METHODS = ["Zelle", "Cash", "Other"];
 
 export default function CashPage() {
@@ -24,6 +26,7 @@ export default function CashPage() {
 
   const [person, setPerson] = useState("Me");
   const [bank, setBank] = useState(BANKS[0]);
+  const [accountType, setAccountType] = useState(ACCOUNT_TYPES[0]);
   const [method, setMethod] = useState(METHODS[0]);
   const [amount, setAmount] = useState("");
   const [withdrawnAt, setWithdrawnAt] = useState(() =>
@@ -54,6 +57,7 @@ export default function CashPage() {
         body: JSON.stringify({
           person,
           bank,
+          accountType,
           method,
           amount: amt,
           withdrawnAt,
@@ -202,20 +206,36 @@ export default function CashPage() {
                 </select>
               </label>
             </div>
-            <label className="text-xs font-medium text-slate-500">
-              Method
-              <select
-                value={method}
-                onChange={(e) => setMethod(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                {METHODS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs font-medium text-slate-500">
+                Account
+                <select
+                  value={accountType}
+                  onChange={(e) => setAccountType(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  {ACCOUNT_TYPES.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-slate-500">
+                Method
+                <select
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                >
+                  {METHODS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <input
               placeholder="Notes (optional, e.g. groceries, rent to landlord)"
               value={notes}
@@ -244,6 +264,7 @@ export default function CashPage() {
                   <th className="px-4 py-2.5 font-medium">Date</th>
                   <th className="px-4 py-2.5 font-medium">Who</th>
                   <th className="px-4 py-2.5 font-medium">Bank</th>
+                  <th className="px-4 py-2.5 font-medium">Account</th>
                   <th className="px-4 py-2.5 font-medium">Method</th>
                   <th className="px-4 py-2.5 text-right font-medium">Amount</th>
                   <th className="px-4 py-2.5 font-medium">Notes</th>
@@ -258,6 +279,9 @@ export default function CashPage() {
                     </td>
                     <td className="px-4 py-2">{r.person || "—"}</td>
                     <td className="px-4 py-2 text-slate-600">{r.bank || "—"}</td>
+                    <td className="px-4 py-2 text-slate-600">
+                      {r.accountType || "—"}
+                    </td>
                     <td className="px-4 py-2 text-slate-600">
                       {r.method || "—"}
                     </td>
@@ -282,7 +306,7 @@ export default function CashPage() {
               {rows.length > 0 ? (
                 <tfoot className="border-t border-slate-200 text-sm font-semibold">
                   <tr>
-                    <td className="px-4 py-2.5" colSpan={4}>
+                    <td className="px-4 py-2.5" colSpan={5}>
                       Total
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">

@@ -33,6 +33,7 @@ export async function POST(req: Request) {
       .values({
         person: body.person ? String(body.person).trim() : null,
         bank: body.bank ? String(body.bank).trim() : null,
+        accountType: body.accountType ? String(body.accountType).trim() : null,
         method: body.method ? String(body.method).trim() : null,
         amount: amount.toFixed(2),
         withdrawnAt,
