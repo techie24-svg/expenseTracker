@@ -13,7 +13,14 @@ import {
 } from "@/lib/csv";
 import { useCategories } from "@/lib/useCategories";
 import type { TxnType } from "@/lib/classify";
-import { Upload, FileText, CheckCircle2, RefreshCw, Copy } from "lucide-react";
+import {
+  Upload,
+  FileText,
+  CheckCircle2,
+  RefreshCw,
+  Copy,
+  ClipboardPaste,
+} from "lucide-react";
 
 interface Card {
   id: number;
@@ -37,6 +44,8 @@ export default function ImportPage() {
   const [cardId, setCardId] = useState<string>("");
   const { names: categoryNames } = useCategories();
   const [fileName, setFileName] = useState("");
+  const [inputMode, setInputMode] = useState<"upload" | "paste">("upload");
+  const [pasteText, setPasteText] = useState("");
   const [rawText, setRawText] = useState("");
   const [convention, setConvention] = useState<AmountConvention>("auto");
   const [rows, setRows] = useState<ParsedTransaction[]>([]);
@@ -102,6 +111,15 @@ export default function ImportPage() {
     setFileName(file.name);
     setDone(null);
     const text = await file.text();
+    setRawText(text);
+    runParse(text, "auto", cardIdNum);
+  }
+
+  function parsePaste() {
+    const text = pasteText.trim();
+    if (!text) return;
+    setFileName("");
+    setDone(null);
     setRawText(text);
     runParse(text, "auto", cardIdNum);
   }
@@ -216,8 +234,8 @@ export default function ImportPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Import statement</h1>
         <p className="text-sm text-slate-500">
-          Upload a credit card statement CSV. We&apos;ll auto-classify fees,
-          credits, and payments so only real spend counts.
+          Upload or paste a credit card or bank statement (CSV). We&apos;ll
+          auto-classify fees, credits, and payments so only real spend counts.
         </p>
       </div>
 
@@ -277,29 +295,80 @@ export default function ImportPage() {
               ) : null}
             </label>
 
-            <label className="block">
+            <div className="block">
               <span className="mb-1 block text-sm font-medium text-slate-700">
-                Statement file (.csv)
+                Statement data
               </span>
-              <div className="flex items-center gap-2">
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-                  <Upload className="h-4 w-4" />
-                  {fileName || "Choose CSV file"}
-                  <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="hidden"
-                    onChange={onFile}
-                  />
-                </label>
+              <div className="inline-flex rounded-lg border border-slate-300 p-0.5 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setInputMode("upload")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 ${
+                    inputMode === "upload"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Upload className="h-4 w-4" /> Upload file
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputMode("paste")}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 ${
+                    inputMode === "paste"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <ClipboardPaste className="h-4 w-4" /> Paste
+                </button>
               </div>
-            </label>
+            </div>
           </div>
+
+          {inputMode === "upload" ? (
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+              <Upload className="h-4 w-4" />
+              {fileName || "Choose CSV file"}
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={onFile}
+              />
+            </label>
+          ) : (
+            <div className="space-y-2">
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={7}
+                placeholder={
+                  "Paste rows copied from your statement or spreadsheet, including the header line, e.g.:\n\nDate,Description,Amount\n1/27/26,VERIZON DES:PAYMENTREC,-29.99\n2/17/26,BKOFAMERICA ATM WITHDRWL,-1500"
+                }
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={parsePaste}
+                  disabled={!pasteText.trim()}
+                >
+                  <ClipboardPaste className="h-4 w-4" /> Parse pasted rows
+                </Button>
+                <span className="text-xs text-slate-400">
+                  Comma or tab separated. Must include a header row with Date,
+                  Description, and Amount (or Debit/Credit).
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
             <FileText className="mr-1 inline h-3.5 w-3.5" />
-            PDF statements are coming per-card — for now export CSV from your
-            bank (works with Amex, Chase, Citi, Capital One, etc.).
+            PDF statements are coming per-card — for now upload or paste CSV from
+            your bank (works with Amex, Chase, Citi, Capital One, BofA, etc.).
           </div>
         </Panel>
       ) : null}
