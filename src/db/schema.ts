@@ -131,6 +131,8 @@ export const cashWithdrawals = pgTable(
     person: text("person"),
     // Which bank / account the cash came from (Chase, BofA, Fidelity, ...).
     bank: text("bank"),
+    // Account type the money came from (Checking, Savings).
+    accountType: text("account_type"),
     // How the money was taken out (Zelle, Cash, Other).
     method: text("method"),
     amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),

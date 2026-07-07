@@ -26,6 +26,7 @@ const STATEMENTS = [
      id serial PRIMARY KEY,
      person text,
      bank text,
+     account_type text,
      method text,
      amount numeric(12,2) NOT NULL,
      withdrawn_at date NOT NULL,
@@ -33,6 +34,7 @@ const STATEMENTS = [
      created_at timestamp DEFAULT now() NOT NULL
    );`,
   `ALTER TABLE cash_withdrawals ADD COLUMN IF NOT EXISTS method text;`,
+  `ALTER TABLE cash_withdrawals ADD COLUMN IF NOT EXISTS account_type text;`,
 
   `CREATE TABLE IF NOT EXISTS cards (
      id serial PRIMARY KEY,

@@ -17,6 +17,10 @@ export async function PATCH(
       updates.person = body.person ? String(body.person).trim() : null;
     if (body.bank !== undefined)
       updates.bank = body.bank ? String(body.bank).trim() : null;
+    if (body.accountType !== undefined)
+      updates.accountType = body.accountType
+        ? String(body.accountType).trim()
+        : null;
     if (body.method !== undefined)
       updates.method = body.method ? String(body.method).trim() : null;
     if (body.amount !== undefined) updates.amount = Number(body.amount).toFixed(2);
