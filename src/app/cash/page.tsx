@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
 import { Panel, Button, StatCard } from "@/components/ui";
+import { MultiSelect } from "@/components/MultiSelect";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { parseAmount, parseDateFlexible } from "@/lib/csv";
 import {
@@ -14,6 +15,10 @@ import {
   ClipboardPaste,
   Pencil,
   X,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  Download,
 } from "lucide-react";
 
 interface Withdrawal {
@@ -40,6 +45,15 @@ interface ParsedCash {
 const BANKS = ["Chase", "BofA", "Fidelity", "Other"];
 const ACCOUNT_TYPES = ["Checking", "Savings"];
 const METHODS = ["Zelle", "Cash", "ACH", "Debit Card", "Other"];
+
+type SortKey =
+  | "withdrawnAt"
+  | "person"
+  | "bank"
+  | "accountType"
+  | "method"
+  | "amount"
+  | "notes";
 
 /** Guess a known bank from free text (statement description / bank cell). */
 function normalizeBank(text: string): string | null {
@@ -116,6 +130,30 @@ export default function CashPage() {
     amount: "",
     notes: "",
   });
+
+  // Filtering & sorting for the table.
+  const [search, setSearch] = useState("");
+  const [personFilter, setPersonFilter] = useState<string[]>([]);
+  const [bankFilter, setBankFilter] = useState<string[]>([]);
+  const [accountFilter, setAccountFilter] = useState<string[]>([]);
+  const [methodFilter, setMethodFilter] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
+    key: "withdrawnAt",
+    dir: "desc",
+  });
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : {
+            key,
+            dir: key === "withdrawnAt" || key === "amount" ? "desc" : "asc",
+          },
+    );
+  }
 
   function load() {
     setLoading(true);
@@ -326,6 +364,119 @@ export default function CashPage() {
     }
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [rows]);
+
+  // Distinct values present in the data, used to populate the filters.
+  const personOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => r.person).filter(Boolean) as string[])].sort(),
+    [rows],
+  );
+  const bankOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => r.bank).filter(Boolean) as string[])].sort(),
+    [rows],
+  );
+  const accountOptions = useMemo(
+    () =>
+      [
+        ...new Set(rows.map((r) => r.accountType).filter(Boolean) as string[]),
+      ].sort(),
+    [rows],
+  );
+  const methodOptions = useMemo(
+    () =>
+      [...new Set(rows.map((r) => r.method).filter(Boolean) as string[])].sort(),
+    [rows],
+  );
+
+  const filtered = useMemo(() => {
+    return rows.filter((r) => {
+      if (personFilter.length && !personFilter.includes(r.person ?? ""))
+        return false;
+      if (bankFilter.length && !bankFilter.includes(r.bank ?? "")) return false;
+      if (accountFilter.length && !accountFilter.includes(r.accountType ?? ""))
+        return false;
+      if (methodFilter.length && !methodFilter.includes(r.method ?? ""))
+        return false;
+      const day = r.withdrawnAt.slice(0, 10);
+      if (dateFrom && day < dateFrom) return false;
+      if (dateTo && day > dateTo) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const hay = [r.person, r.bank, r.accountType, r.method, r.notes]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [
+    rows,
+    personFilter,
+    bankFilter,
+    accountFilter,
+    methodFilter,
+    dateFrom,
+    dateTo,
+    search,
+  ]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    const { key, dir } = sort;
+    arr.sort((a, b) => {
+      let av: string | number;
+      let bv: string | number;
+      if (key === "amount") {
+        av = Number(a.amount);
+        bv = Number(b.amount);
+      } else {
+        av = (a[key] ?? "") as string;
+        bv = (b[key] ?? "") as string;
+      }
+      if (av < bv) return dir === "asc" ? -1 : 1;
+      if (av > bv) return dir === "asc" ? 1 : -1;
+      return a.id - b.id;
+    });
+    return arr;
+  }, [filtered, sort]);
+
+  const filteredTotal = useMemo(
+    () => filtered.reduce((s, r) => s + Number(r.amount), 0),
+    [filtered],
+  );
+
+  const activeFilterCount =
+    personFilter.length +
+    bankFilter.length +
+    accountFilter.length +
+    methodFilter.length +
+    (dateFrom || dateTo ? 1 : 0) +
+    (search ? 1 : 0);
+
+  function exportCsv() {
+    const header = ["Date", "Who", "Bank", "Account", "Method", "Amount", "Notes"];
+    const lines = sorted.map((r) =>
+      [
+        r.withdrawnAt.slice(0, 10),
+        `"${(r.person ?? "").replace(/"/g, '""')}"`,
+        `"${(r.bank ?? "").replace(/"/g, '""')}"`,
+        `"${(r.accountType ?? "").replace(/"/g, '""')}"`,
+        `"${(r.method ?? "").replace(/"/g, '""')}"`,
+        r.amount,
+        `"${(r.notes ?? "").replace(/"/g, '""')}"`,
+      ].join(","),
+    );
+    const csv = [header.join(","), ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "cash-withdrawals.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="space-y-6">
@@ -672,23 +823,116 @@ export default function CashPage() {
       </Panel>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-500">
+          {activeFilterCount === 0
+            ? `${rows.length} withdrawal${rows.length === 1 ? "" : "s"}`
+            : `${filtered.length} of ${rows.length} shown`}{" "}
+          ·{" "}
+          <span className="font-medium text-slate-700">
+            {formatCurrency(filteredTotal)}
+          </span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <input
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          />
+          <MultiSelect
+            label="Who"
+            options={personOptions}
+            selected={personFilter}
+            onChange={setPersonFilter}
+          />
+          <MultiSelect
+            label="Bank"
+            options={bankOptions}
+            selected={bankFilter}
+            onChange={setBankFilter}
+          />
+          <MultiSelect
+            label="Account"
+            options={accountOptions}
+            selected={accountFilter}
+            onChange={setAccountFilter}
+          />
+          <MultiSelect
+            label="Method"
+            options={methodOptions}
+            selected={methodFilter}
+            onChange={setMethodFilter}
+          />
+          <div className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm">
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => setDateFrom(e.target.value)}
+              title="From date"
+              className="bg-transparent text-slate-700 outline-none"
+            />
+            <span className="text-slate-400">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              title="To date"
+              className="bg-transparent text-slate-700 outline-none"
+            />
+            {dateFrom || dateTo ? (
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                title="Clear dates"
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+          <Button
+            variant="secondary"
+            onClick={exportCsv}
+            disabled={sorted.length === 0}
+          >
+            <Download className="h-4 w-4" /> Export
+          </Button>
+        </div>
+      </div>
+
       <Panel className="overflow-hidden p-0">
           <div className="overflow-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Date</th>
-                  <th className="px-4 py-2.5 font-medium">Who</th>
-                  <th className="px-4 py-2.5 font-medium">Bank</th>
-                  <th className="px-4 py-2.5 font-medium">Account</th>
-                  <th className="px-4 py-2.5 font-medium">Method</th>
-                  <th className="px-4 py-2.5 text-right font-medium">Amount</th>
-                  <th className="px-4 py-2.5 font-medium">Notes</th>
+                  <SortTh label="Date" k="withdrawnAt" sort={sort} onSort={toggleSort} />
+                  <SortTh label="Who" k="person" sort={sort} onSort={toggleSort} />
+                  <SortTh label="Bank" k="bank" sort={sort} onSort={toggleSort} />
+                  <SortTh
+                    label="Account"
+                    k="accountType"
+                    sort={sort}
+                    onSort={toggleSort}
+                  />
+                  <SortTh label="Method" k="method" sort={sort} onSort={toggleSort} />
+                  <SortTh
+                    label="Amount"
+                    k="amount"
+                    sort={sort}
+                    onSort={toggleSort}
+                    align="right"
+                  />
+                  <SortTh label="Notes" k="notes" sort={sort} onSort={toggleSort} />
                   <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((r) =>
+                {sorted.map((r) =>
                   editingId === r.id ? (
                     <tr key={r.id} className="bg-emerald-50/40">
                       <td className="px-3 py-1.5">
@@ -848,23 +1092,25 @@ export default function CashPage() {
                   ),
                 )}
               </tbody>
-              {rows.length > 0 ? (
+              {sorted.length > 0 ? (
                 <tfoot className="border-t border-slate-200 text-sm font-semibold">
                   <tr>
                     <td className="px-4 py-2.5" colSpan={5}>
                       Total
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">
-                      {formatCurrency(total)}
+                      {formatCurrency(filteredTotal)}
                     </td>
                     <td colSpan={2} />
                   </tr>
                 </tfoot>
               ) : null}
             </table>
-            {!loading && rows.length === 0 ? (
+            {!loading && sorted.length === 0 ? (
               <p className="p-8 text-center text-sm text-slate-400">
-                No cash withdrawals logged yet.
+                {rows.length === 0
+                  ? "No cash withdrawals logged yet."
+                  : "No withdrawals match your filters."}
               </p>
             ) : null}
             {loading ? (
@@ -873,5 +1119,44 @@ export default function CashPage() {
           </div>
         </Panel>
     </div>
+  );
+}
+
+function SortTh({
+  label,
+  k,
+  sort,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  k: SortKey;
+  sort: { key: SortKey; dir: "asc" | "desc" };
+  onSort: (k: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  const active = sort.key === k;
+  return (
+    <th
+      className={`px-4 py-2.5 font-medium ${align === "right" ? "text-right" : ""}`}
+    >
+      <button
+        onClick={() => onSort(k)}
+        className={`inline-flex items-center gap-1 hover:text-slate-800 ${
+          active ? "text-slate-800" : ""
+        } ${align === "right" ? "flex-row-reverse" : ""}`}
+      >
+        {label}
+        {active ? (
+          sort.dir === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </th>
   );
 }
