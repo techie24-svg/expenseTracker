@@ -119,8 +119,34 @@ export const transactions = pgTable(
   }),
 );
 
+/**
+ * Cash withdrawals from bank accounts (ATM / teller). Tracked separately from
+ * card transactions: who took it out, from which bank, how much, and when.
+ */
+export const cashWithdrawals = pgTable(
+  "cash_withdrawals",
+  {
+    id: serial("id").primaryKey(),
+    // Who withdrew it ("Me" / "Spouse" or any label).
+    person: text("person"),
+    // Which bank / account the cash came from (Chase, BofA, Fidelity, ...).
+    bank: text("bank"),
+    // How the money was taken out (Zelle, Cash, Other).
+    method: text("method"),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    withdrawnAt: date("withdrawn_at").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    dateIdx: index("cash_date_idx").on(t.withdrawnAt),
+  }),
+);
+
 export type CategoryRow = typeof categories.$inferSelect;
 export type NewCategoryRow = typeof categories.$inferInsert;
+export type CashWithdrawal = typeof cashWithdrawals.$inferSelect;
+export type NewCashWithdrawal = typeof cashWithdrawals.$inferInsert;
 export type Card = typeof cards.$inferSelect;
 export type NewCard = typeof cards.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;

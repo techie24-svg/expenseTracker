@@ -22,6 +22,18 @@ const STATEMENTS = [
      created_at timestamp DEFAULT now() NOT NULL
    );`,
 
+  `CREATE TABLE IF NOT EXISTS cash_withdrawals (
+     id serial PRIMARY KEY,
+     person text,
+     bank text,
+     method text,
+     amount numeric(12,2) NOT NULL,
+     withdrawn_at date NOT NULL,
+     notes text,
+     created_at timestamp DEFAULT now() NOT NULL
+   );`,
+  `ALTER TABLE cash_withdrawals ADD COLUMN IF NOT EXISTS method text;`,
+
   `CREATE TABLE IF NOT EXISTS cards (
      id serial PRIMARY KEY,
      name text NOT NULL,
@@ -59,6 +71,7 @@ const STATEMENTS = [
   `ALTER TABLE cards ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;`,
   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS duplicate_review boolean NOT NULL DEFAULT false;`,
 
+  `CREATE INDEX IF NOT EXISTS cash_date_idx ON cash_withdrawals (withdrawn_at);`,
   `CREATE INDEX IF NOT EXISTS txn_date_idx ON transactions (txn_date);`,
   `CREATE INDEX IF NOT EXISTS txn_type_idx ON transactions (type);`,
   `CREATE INDEX IF NOT EXISTS txn_card_idx ON transactions (card_id);`,
